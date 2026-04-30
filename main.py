@@ -13,16 +13,12 @@ Run with custom parameters::
 
 Compare n-hop counts and SC ratio across multiple graphs::
 
-    python main.py nhop-connectivity --vertices 5 --num-graphs 20 --seed 0
-
-Run nhop-connectivity with a custom connectivity sweep range::
-
-    python main.py nhop-connectivity --vertices 5 --num-graphs 30 \\
-        --connectivity-min 0.2 --connectivity-max 0.9 --seed 42 --output nhop.png
+    python main.py nhop-connectivity --vertices 5 --num-graphs 20 --num-orientations 300 --seed 0
 """
 
 import argparse
 import os
+import random
 import signal
 import time
 import types
@@ -167,6 +163,7 @@ def analyse(
 def analyse_nhop_connectivity(
     num_vertices: int,
     num_graphs: int,
+    num_orientations: int,
     seed: int | None,
     output: str | None,
 ) -> None:
@@ -174,11 +171,14 @@ def analyse_nhop_connectivity(
 
     For each generated planar graph this function:
 
-    1. Enumerates **all** 2^|E| orientations (both strongly-connected and not).
-    2. For each orientation computes the 2-hop and 3-hop neighbour counts and
-       records whether the orientation is strongly connected.
-    3. Groups orientations by their n-hop count and computes the SC ratio per
-       group: SC ratio = SC orientations in group / all orientations in group.
+    1. Randomly samples *num_orientations* orientation combinations (bit-masks
+       over the edge set).  Each sampled orientation is either strongly
+       connected or not.
+    2. For each sampled orientation computes the 2-hop and 3-hop neighbour
+       counts and records whether the orientation is strongly connected.
+    3. Groups sampled orientations by their n-hop count and computes the SC
+       ratio per group:
+       SC ratio = (SC orientations in group) / (all sampled orientations in group)
 
     The result is plotted as a scatter plot with n-hop count on the x-axis
     and SC ratio on the y-axis (one subplot per hop distance).
@@ -186,18 +186,20 @@ def analyse_nhop_connectivity(
     Args:
         num_vertices: Number of vertices in each generated Delaunay graph.
         num_graphs: Number of random planar graphs to generate.
-        seed: Base random seed.  Graph *i* uses seed ``seed + i`` when set.
+        num_orientations: Number of orientation combinations to sample per graph.
+        seed: Base random seed.  Graph *i* uses ``seed + i`` when set.
         output: File path to save the plot.  Auto-generated if ``None``.
     """
     hops = NHOP_CONN_HOPS
 
-    # nhop_bucket_total[hop][count] = total orientations with that n-hop count
+    # nhop_bucket_total[hop][count] = sampled orientations with that n-hop count
     # nhop_bucket_sc[hop][count]    = SC orientations with that n-hop count
     nhop_bucket_total: dict[int, dict[int, int]] = {hop: {} for hop in hops}
     nhop_bucket_sc: dict[int, dict[int, int]] = {hop: {} for hop in hops}
 
     print(
-        f"Analysing {num_graphs} Delaunay planar graphs ({num_vertices} vertices) …"
+        f"Analysing {num_graphs} Delaunay planar graphs "
+        f"({num_vertices} vertices, {num_orientations} sampled orientations each) …"
     )
 
     for i in range(num_graphs):
@@ -209,18 +211,16 @@ def analyse_nhop_connectivity(
         edge_count = len(edges)
         total_orientations = 1 << edge_count
 
-        if total_orientations > MAX_EXHAUSTIVE_ORIENTATIONS:
-            print(
-                f"  Graph {i + 1}/{num_graphs}: {edge_count} edges, "
-                f"too many orientations ({total_orientations:,}), skipping – "
-                f"use fewer vertices."
-            )
-            continue
+        rng = random.Random(graph_seed)
+        sample_size = min(num_orientations, total_orientations)
+        sampled_indices = rng.sample(range(total_orientations), sample_size)
 
         sc_count = 0
-        for idx in range(total_orientations):
-            dg = nx.DiGraph()
-            dg.add_nodes_from(nodes)
+        dg = nx.DiGraph()
+        dg.add_nodes_from(nodes)
+
+        for idx in sampled_indices:
+            dg.clear_edges()
             for edge_idx, (u, v) in enumerate(edges):
                 if (idx >> edge_idx) & 1:
                     dg.add_edge(v, u)
@@ -231,17 +231,17 @@ def analyse_nhop_connectivity(
             _, counts = calculate_apsp_sum_and_nhop_neighbor_counts(dg, hops=hops)
 
             for hop in hops:
-                c = counts[hop]
-                nhop_bucket_total[hop][c] = nhop_bucket_total[hop].get(c, 0) + 1
+                nhop_count = counts[hop]
+                nhop_bucket_total[hop][nhop_count] = nhop_bucket_total[hop].get(nhop_count, 0) + 1
                 if is_sc:
-                    nhop_bucket_sc[hop][c] = nhop_bucket_sc[hop].get(c, 0) + 1
+                    nhop_bucket_sc[hop][nhop_count] = nhop_bucket_sc[hop].get(nhop_count, 0) + 1
 
             if is_sc:
                 sc_count += 1
 
         print(
             f"  Graph {i + 1}/{num_graphs}: edges={edge_count}, "
-            f"SC={sc_count}/{total_orientations}"
+            f"sampled={sample_size}, SC={sc_count}/{sample_size}"
         )
 
     if not any(nhop_bucket_total[hop] for hop in hops):
@@ -255,13 +255,14 @@ def analyse_nhop_connectivity(
         sorted_counts = sorted(nhop_bucket_total[hop].keys())
         nhop_x[hop] = sorted_counts
         sc_ratio_y[hop] = [
-            nhop_bucket_sc[hop].get(c, 0) / nhop_bucket_total[hop][c]
-            for c in sorted_counts
+            nhop_bucket_sc[hop].get(nhop_count, 0) / nhop_bucket_total[hop][nhop_count]
+            for nhop_count in sorted_counts
         ]
 
     title = (
         f"N-hop Count vs SC Ratio  "
-        f"(n={num_vertices} vertices, {num_graphs} Delaunay graphs)"
+        f"(n={num_vertices} vertices, {num_graphs} Delaunay graphs, "
+        f"{num_orientations} orientations sampled)"
     )
     save_path = output or f"nhop_connectivity_v{num_vertices}.png"
     plot_nhop_connectivity_comparison(nhop_x, sc_ratio_y, title=title, save_path=save_path)
@@ -367,6 +368,11 @@ def main() -> None:
         help="Number of Delaunay planar graphs to generate (default: 20)"
     )
     nhop_parser.add_argument(
+        "--num-orientations", type=int, default=200,
+        help="Number of random orientation combinations to sample per graph "
+             "(default: 200). Capped at 2^|E| automatically."
+    )
+    nhop_parser.add_argument(
         "--seed", type=int, default=None,
         help="Base random seed. Graph i uses seed+i when set."
     )
@@ -398,6 +404,7 @@ def main() -> None:
         analyse_nhop_connectivity(
             args.vertices,
             args.num_graphs,
+            args.num_orientations,
             args.seed,
             args.output,
         )
