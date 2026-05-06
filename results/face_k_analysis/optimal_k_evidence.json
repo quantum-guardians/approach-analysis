@@ -1,0 +1,95 @@
+{
+  "model": "k*(n, pct) \u2248 a * n^b * exp(c * pct)",
+  "metrics": {
+    "count": 12,
+    "mae": 1.4166666666666667,
+    "rmse": 1.8027756377319946,
+    "exact_match_rate": 0.3333333333333333
+  },
+  "rows": [
+    {
+      "n": 10,
+      "pct": 0.0,
+      "observed_k": 7,
+      "predicted_k": 7,
+      "abs_error": 0
+    },
+    {
+      "n": 10,
+      "pct": 0.1,
+      "observed_k": 6,
+      "predicted_k": 5,
+      "abs_error": 1
+    },
+    {
+      "n": 10,
+      "pct": 0.2,
+      "observed_k": 2,
+      "predicted_k": 4,
+      "abs_error": 2
+    },
+    {
+      "n": 10,
+      "pct": 0.3,
+      "observed_k": 3,
+      "predicted_k": 3,
+      "abs_error": 0
+    },
+    {
+      "n": 20,
+      "pct": 0.0,
+      "observed_k": 9,
+      "predicted_k": 7,
+      "abs_error": 2
+    },
+    {
+      "n": 20,
+      "pct": 0.1,
+      "observed_k": 8,
+      "predicted_k": 6,
+      "abs_error": 2
+    },
+    {
+      "n": 20,
+      "pct": 0.2,
+      "observed_k": 6,
+      "predicted_k": 4,
+      "abs_error": 2
+    },
+    {
+      "n": 20,
+      "pct": 0.3,
+      "observed_k": 3,
+      "predicted_k": 3,
+      "abs_error": 0
+    },
+    {
+      "n": 30,
+      "pct": 0.0,
+      "observed_k": 6,
+      "predicted_k": 8,
+      "abs_error": 2
+    },
+    {
+      "n": 30,
+      "pct": 0.1,
+      "observed_k": 3,
+      "predicted_k": 6,
+      "abs_error": 3
+    },
+    {
+      "n": 30,
+      "pct": 0.2,
+      "observed_k": 7,
+      "predicted_k": 4,
+      "abs_error": 3
+    },
+    {
+      "n": 30,
+      "pct": 0.3,
+      "observed_k": 3,
+      "predicted_k": 3,
+      "abs_error": 0
+    }
+  ]
+}

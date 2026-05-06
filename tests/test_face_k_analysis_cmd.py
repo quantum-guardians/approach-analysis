@@ -15,9 +15,11 @@ from src.commands.face_k_analysis import (
     _evaluate_face_cycle,
     derive_optimal_k,
     _fit_optimal_k_formula,
+    predict_optimal_k,
+    evaluate_optimal_k_formula,
     remove_edges_maintaining_biconnectivity,
 )
-from src.visualizer import plot_face_k_analysis
+from src.visualizer import plot_face_k_analysis, plot_optimal_k_fit_evidence
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +217,30 @@ class TestFitOptimalKFormula:
         assert a >= 0
 
 
+class TestPredictOptimalK:
+    def test_returns_positive_integer(self) -> None:
+        predicted = predict_optimal_k(0.8, 0.7, 0.2, n=20, pct=0.3)
+        assert isinstance(predicted, int)
+        assert predicted >= 1
+
+
+class TestEvaluateOptimalKFormula:
+    def test_returns_metrics_and_rows(self) -> None:
+        optimal = {(10, 0.0): 2, (10, 0.1): 2, (20, 0.0): 3, (20, 0.1): 3}
+        evidence = evaluate_optimal_k_formula(
+            optimal,
+            graph_sizes=[10, 20],
+            removal_pcts=[0.0, 0.1],
+            a=0.8,
+            b=0.5,
+            c=0.0,
+        )
+        assert "metrics" in evidence
+        assert "rows" in evidence
+        assert evidence["metrics"]["count"] == 4
+        assert len(evidence["rows"]) == 4
+
+
 # ---------------------------------------------------------------------------
 # plot_face_k_analysis
 # ---------------------------------------------------------------------------
@@ -264,6 +290,39 @@ class TestPlotFaceKAnalysis:
         plt.close("all")
 
 
+class TestPlotOptimalKFitEvidence:
+    def test_returns_figure(self, tmp_path) -> None:
+        import matplotlib.pyplot as plt
+
+        optimal = {(10, 0.0): 2, (10, 0.1): 3, (20, 0.0): 3, (20, 0.1): 4}
+        predicted = {(10, 0.0): 2, (10, 0.1): 2, (20, 0.0): 3, (20, 0.1): 4}
+        fig = plot_optimal_k_fit_evidence(
+            optimal=optimal,
+            graph_sizes=[10, 20],
+            removal_pcts=[0.0, 0.1],
+            predicted=predicted,
+            save_path=str(tmp_path / "fit.png"),
+        )
+        assert fig is not None
+        plt.close("all")
+
+    def test_saves_png(self, tmp_path) -> None:
+        import matplotlib.pyplot as plt
+
+        optimal = {(10, 0.0): 2, (10, 0.1): 3, (20, 0.0): 3, (20, 0.1): 4}
+        predicted = {(10, 0.0): 2, (10, 0.1): 2, (20, 0.0): 3, (20, 0.1): 4}
+        out = tmp_path / "optimal_k_fit.png"
+        plot_optimal_k_fit_evidence(
+            optimal=optimal,
+            graph_sizes=[10, 20],
+            removal_pcts=[0.0, 0.1],
+            predicted=predicted,
+            save_path=str(out),
+        )
+        assert out.exists()
+        plt.close("all")
+
+
 # ---------------------------------------------------------------------------
 # Integration: run (small parameters)
 # ---------------------------------------------------------------------------
@@ -273,6 +332,7 @@ class TestRun:
         """Smoke test: run with tiny parameters."""
         # Monkeypatch plot to avoid slow rendering
         monkeypatch.setattr(fka, "plot_face_k_analysis", lambda **kw: None)
+        monkeypatch.setattr(fka, "plot_optimal_k_fit_evidence", lambda **kw: None)
 
         fka.run(
             graph_sizes=[8],
@@ -293,6 +353,11 @@ class TestRun:
         data = json.loads(json_path.read_text())
         assert "8" in data["results"]
         assert "0.0" in data["results"]["8"]
+        assert "formula_fit" in data
+        assert "fit_evidence" in data
+
+        evidence_path = tmp_path / "optimal_k_evidence.json"
+        assert evidence_path.exists()
 
         report_path = tmp_path / "report.md"
         assert report_path.exists()

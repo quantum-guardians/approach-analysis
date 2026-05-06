@@ -34,9 +34,26 @@ import networkx as nx
 import numpy as np
 from scipy.spatial import Delaunay
 
-from mr2s_module import FaceCycle, Graph as MR2SGraph, Edge as MR2SEdge
+from mr2s_module import FaceCycle, Graph as MR2SGraph, Edge as MR2SEdge, NHop, \
+  QuboMR2SSolver, SAQuboSolver, ApspSumRanker, Evaluator, NHopPolyGenerator, \
+  FlowPolyGenerator, SmallWorldSpec
 
-from src.visualizer import plot_face_k_analysis
+from src.visualizer import plot_face_k_analysis, plot_optimal_k_fit_evidence
+
+spec = SmallWorldSpec([NHop(2, 1), NHop(3, 1)])
+
+
+def _build_solver(target_k: int) -> QuboMR2SSolver:
+    """Create an isolated MR2S solver configured for a FaceCycle run."""
+    n_hop_poly = NHopPolyGenerator()
+    n_hop_poly.small_world_spec = spec
+    solver = QuboMR2SSolver(
+        FaceCycle(target_k=target_k),
+        SAQuboSolver(ApspSumRanker()),
+        Evaluator(),
+        {n_hop_poly, FlowPolyGenerator()},
+    )
+    return solver
 
 
 # ---------------------------------------------------------------------------
@@ -136,80 +153,51 @@ def _evaluate_face_cycle(
     num_samples: int,
     rng: np.random.Generator,
 ) -> tuple[float, float]:
-    """Evaluate SC ratio and mean APSP for a FaceCycle orientation.
+    """Evaluate SC ratio and mean APSP for the FaceCycle solution itself.
 
     1. Converts *reduced_graph* to a :class:`mr2s_module.Graph`.
-    2. Runs ``FaceCycle(target_k)`` to obtain forced directed boundary edges.
-    3. Samples *num_samples* random orientations for the remaining undirected
-       edges, keeping the FaceCycle-directed edges fixed.
+    2. Runs ``FaceCycle(target_k)`` through the MR2S solver.
+    3. Evaluates only the directed edges contained in ``solution.edges``.
     4. Returns ``(sc_ratio, mean_normalised_apsp)``.
 
     The APSP sum is normalised by ``n * (n-1)`` so values are comparable
-    across graphs of different sizes.  ``mean_normalised_apsp`` is the mean
-    over only the strongly-connected samples; ``nan`` when none are SC.
+    across graphs of different sizes. ``mean_normalised_apsp`` is ``nan``
+    when the returned orientation is not strongly connected.
 
     Args:
         reduced_graph: Biconnected undirected graph (edges may have been
             removed from the original Delaunay graph).
         target_k: FaceCycle parameter controlling the number of face clusters.
-        num_samples: Number of random orientation samples to evaluate.
-        rng: NumPy random generator.
+        num_samples: Retained for API compatibility; ignored because the
+            evaluation uses only the solver's returned orientation.
+        rng: Retained for API compatibility; ignored.
 
     Returns:
         ``(sc_ratio, mean_normalised_apsp)``
     """
     nodes = list(reduced_graph.nodes())
     n = len(nodes)
-    all_edges = list(reduced_graph.edges())
 
     mr2s_graph = _nx_to_mr2s_graph(reduced_graph)
-    fc = FaceCycle(target_k=target_k)
-    directed_edges = fc.run(mr2s_graph)
-
-    # Build a lookup: canonical edge id → directed (src, dst) pair
-    forced: dict[tuple[int, int], tuple[int, int]] = {}
-    for e in directed_edges:
-        forced[e.id] = e.vertices
-
-    # Separate forced and free edges
-    free_edges: list[tuple[int, int]] = [
-        (u, v)
-        for u, v in all_edges
-        if (min(u, v), max(u, v)) not in forced
-    ]
-    forced_pairs: list[tuple[int, int]] = list(forced.values())
-
-    sc_count = 0
-    apsp_sums: list[float] = []
+    solver = _build_solver(target_k)
+    try:
+        solution = solver.run(mr2s_graph)
+        directed_edges = solution.edges
+    except AssertionError as exc:
+        if "strongly connected" not in str(exc):
+            raise
+        return 0.0, float("nan")
 
     dg = nx.DiGraph()
     dg.add_nodes_from(nodes)
+    dg.add_edges_from(directed_edges)
 
-    bits = rng.integers(0, 2, size=(num_samples, len(free_edges)), dtype=np.int8)
+    if nx.is_strongly_connected(dg):
+        mean_apsp = solution.score.apsp_sum / max(n * (n - 1), 1)
+        return solution.score.strong_connect_rate, float(mean_apsp)
 
-    for sample_bits in bits:
-        dg.clear_edges()
-        dg.add_edges_from(forced_pairs)
-        for bit, (u, v) in zip(sample_bits, free_edges):
-            if bit == 0:
-                dg.add_edge(u, v)
-            else:
-                dg.add_edge(v, u)
-
-        if nx.is_strongly_connected(dg):
-            sc_count += 1
-            apsp_sums.append(
-                sum(
-                    d
-                    for src, lengths in nx.all_pairs_shortest_path_length(dg)
-                    for t, d in lengths.items()
-                    if t != src
-                )
-                / max(n * (n - 1), 1)
-            )
-
-    sc_ratio = sc_count / num_samples if num_samples > 0 else 0.0
-    mean_apsp = float(np.mean(apsp_sums)) if apsp_sums else float("nan")
+    sc_ratio = solution.score.strong_connect_rate
+    mean_apsp = float("nan")
     return sc_ratio, mean_apsp
 
 
@@ -302,6 +290,12 @@ def run(
                 }
                 print(f"SC={agg_sc:.3f}, APSP={agg_apsp:.3f}")
 
+    optimal = derive_optimal_k(results, graph_sizes, removal_pcts, target_ks)
+    a, b, c = _fit_optimal_k_formula(optimal, graph_sizes, removal_pcts)
+    fit_evidence = evaluate_optimal_k_formula(
+        optimal, graph_sizes, removal_pcts, a, b, c
+    )
+
     # Save JSON results
     json_path = os.path.join(output_dir, "face_k_results.json")
     with open(json_path, "w", encoding="utf-8") as fh:
@@ -314,11 +308,30 @@ def run(
                 "num_samples": num_samples,
                 "seed": seed,
                 "results": results,
+                "optimal_k": {
+                    str(n): {
+                        str(pct): optimal[(n, pct)]
+                        for pct in removal_pcts
+                    }
+                    for n in graph_sizes
+                },
+                "formula_fit": {
+                    "model": "k*(n, pct) ≈ a * n^b * exp(c * pct)",
+                    "a": a,
+                    "b": b,
+                    "c": c,
+                },
+                "fit_evidence": fit_evidence,
             },
             fh,
             indent=2,
         )
     print(f"\nResults saved to: {os.path.abspath(json_path)}")
+
+    evidence_path = os.path.join(output_dir, "optimal_k_evidence.json")
+    with open(evidence_path, "w", encoding="utf-8") as fh:
+        json.dump(fit_evidence, fh, indent=2)
+    print(f"Fit evidence saved to: {os.path.abspath(evidence_path)}")
 
     # Plot
     plot_path = plot_output or os.path.join(output_dir, "face_k_analysis.png")
@@ -331,6 +344,20 @@ def run(
     )
     print(f"Plot saved to: {os.path.abspath(plot_path)}")
 
+    fit_plot_path = os.path.join(output_dir, "optimal_k_fit.png")
+    predicted = {
+        (row["n"], row["pct"]): row["predicted_k"]
+        for row in fit_evidence["rows"]
+    }
+    plot_optimal_k_fit_evidence(
+        optimal=optimal,
+        graph_sizes=graph_sizes,
+        removal_pcts=removal_pcts,
+        predicted=predicted,
+        save_path=fit_plot_path,
+    )
+    print(f"Optimal-k fit plot saved to: {os.path.abspath(fit_plot_path)}")
+
     # Write report
     report_path = os.path.join(output_dir, "report.md")
     _write_report(
@@ -341,6 +368,9 @@ def run(
         num_graphs=num_graphs,
         num_samples=num_samples,
         seed=seed,
+        optimal=optimal,
+        fit_coeffs=(a, b, c),
+        fit_evidence=fit_evidence,
         report_path=report_path,
     )
     print(f"Report saved to: {os.path.abspath(report_path)}")
@@ -427,6 +457,61 @@ def _fit_optimal_k_formula(
     return a, b, c
 
 
+def predict_optimal_k(a: float, b: float, c: float, n: int, pct: float) -> int:
+    """Predict the optimal FaceCycle target_k from the fitted formula."""
+    return max(1, int(round(a * (n ** b) * np.exp(c * pct))))
+
+
+def evaluate_optimal_k_formula(
+    optimal: dict[tuple[int, float], int],
+    graph_sizes: list[int],
+    removal_pcts: list[float],
+    a: float,
+    b: float,
+    c: float,
+) -> dict[str, Any]:
+    """Summarise how well the fitted formula matches the observed optimum."""
+    rows: list[dict[str, Any]] = []
+    abs_errors: list[float] = []
+    sq_errors: list[float] = []
+    exact_matches = 0
+
+    for n in graph_sizes:
+        for pct in removal_pcts:
+            observed_k = optimal[(n, pct)]
+            predicted_k = predict_optimal_k(a, b, c, n, pct)
+            abs_error = abs(predicted_k - observed_k)
+            rows.append(
+                {
+                    "n": n,
+                    "pct": pct,
+                    "observed_k": observed_k,
+                    "predicted_k": predicted_k,
+                    "abs_error": abs_error,
+                }
+            )
+            abs_errors.append(float(abs_error))
+            sq_errors.append(float(abs_error ** 2))
+            if predicted_k == observed_k:
+                exact_matches += 1
+
+    count = len(rows)
+    mae = float(np.mean(abs_errors)) if abs_errors else float("nan")
+    rmse = float(np.sqrt(np.mean(sq_errors))) if sq_errors else float("nan")
+    exact_match_rate = exact_matches / count if count > 0 else float("nan")
+
+    return {
+        "model": "k*(n, pct) ≈ a * n^b * exp(c * pct)",
+        "metrics": {
+            "count": count,
+            "mae": mae,
+            "rmse": rmse,
+            "exact_match_rate": exact_match_rate,
+        },
+        "rows": rows,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Report writer
 # ---------------------------------------------------------------------------
@@ -439,11 +524,14 @@ def _write_report(
     num_graphs: int,
     num_samples: int,
     seed: int | None,
+    optimal: dict[tuple[int, float], int],
+    fit_coeffs: tuple[float, float, float],
+    fit_evidence: dict[str, Any],
     report_path: str,
 ) -> None:
     """Write a Markdown report summarising the analysis and optimal-k formula."""
-    optimal = derive_optimal_k(results, graph_sizes, removal_pcts, target_ks)
-    a, b, c = _fit_optimal_k_formula(optimal, graph_sizes, removal_pcts)
+    a, b, c = fit_coeffs
+    metrics = fit_evidence["metrics"]
 
     lines: list[str] = [
         "# 최적 면 개수(target k) 분석 보고서\n",
@@ -503,12 +591,19 @@ def _write_report(
         "간선이 줄어든 희박한 그래프에서는 더 많은 face cluster가 강연결성을 확보하는 데 도움이 됩니다.\n"
         "- **c < 0** (음수인 경우): 간선 제거 비율이 높을수록 최적 k가 감소합니다. "
         "희박한 그래프에서는 face의 수 자체가 줄기 때문에 작은 k로도 충분합니다.\n\n",
-        "### 4.3 최적 k 조견표\n\n",
+        "### 4.3 적합도 근거\n\n",
+        f"- 평가 조합 수: **{metrics['count']}**\n",
+        f"- 정확 일치율: **{metrics['exact_match_rate']:.2%}**\n",
+        f"- 평균 절대 오차(MAE): **{metrics['mae']:.3f}**\n",
+        f"- RMSE: **{metrics['rmse']:.3f}**\n\n",
+        "위 수치는 실험으로 얻은 최적 k와 공식이 예측한 k를 직접 비교해 계산했습니다. "
+        "세부 비교는 `optimal_k_evidence.json`과 `optimal_k_fit.png`에서 확인할 수 있습니다.\n\n",
+        "### 4.4 최적 k 조견표\n\n",
         "| 정점 수 | 제거 비율 | 공식 k* | 실험 k* |\n|---|---|---|---|\n",
     ]
     for n in graph_sizes:
         for pct in removal_pcts:
-            formula_k = max(1, round(a * (n ** b) * np.exp(c * pct)))
+            formula_k = predict_optimal_k(a, b, c, n, pct)
             exp_k = optimal.get((n, pct), target_ks[0])
             lines.append(f"| {n} | {pct:.0%} | {formula_k} | {exp_k} |\n")
 

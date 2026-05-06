@@ -229,3 +229,72 @@ def plot_face_k_analysis(
         plt.show()
 
     return fig
+
+
+def plot_optimal_k_fit_evidence(
+    optimal: dict[tuple[int, float], int],
+    graph_sizes: list[int],
+    removal_pcts: list[float],
+    predicted: dict[tuple[int, float], int],
+    title: str = "Optimal target-k Fit Evidence",
+    save_path: str | None = None,
+) -> plt.Figure:
+    """Visualise observed vs predicted optimal-k values and fit error.
+
+    Creates a 2x2 panel figure:
+
+    * observed optimal ``k`` heatmap
+    * predicted optimal ``k`` heatmap
+    * absolute error heatmap
+    * observed-vs-predicted scatter with identity line
+    """
+    observed_grid = np.array(
+        [[optimal[(n, pct)] for pct in removal_pcts] for n in graph_sizes],
+        dtype=float,
+    )
+    predicted_grid = np.array(
+        [[predicted[(n, pct)] for pct in removal_pcts] for n in graph_sizes],
+        dtype=float,
+    )
+    error_grid = np.abs(predicted_grid - observed_grid)
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(title, fontsize=14)
+
+    def _heatmap(ax: plt.Axes, data: np.ndarray, cmap: str, panel_title: str) -> None:
+        im = ax.imshow(data, aspect="auto", cmap=cmap)
+        ax.set_title(panel_title)
+        ax.set_xlabel("edge removal ratio")
+        ax.set_ylabel("vertex count")
+        ax.set_xticks(range(len(removal_pcts)))
+        ax.set_xticklabels([f"{pct:.0%}" for pct in removal_pcts])
+        ax.set_yticks(range(len(graph_sizes)))
+        ax.set_yticklabels([str(n) for n in graph_sizes])
+        for row in range(data.shape[0]):
+            for col in range(data.shape[1]):
+                ax.text(col, row, f"{int(round(data[row, col]))}", ha="center", va="center")
+        fig.colorbar(im, ax=ax, shrink=0.85)
+
+    _heatmap(axes[0, 0], observed_grid, "Blues", "Observed optimal k")
+    _heatmap(axes[0, 1], predicted_grid, "Greens", "Formula-predicted optimal k")
+    _heatmap(axes[1, 0], error_grid, "Oranges", "Absolute prediction error")
+
+    ax = axes[1, 1]
+    observed_vals = observed_grid.ravel()
+    predicted_vals = predicted_grid.ravel()
+    ax.scatter(observed_vals, predicted_vals, s=50, alpha=0.8)
+    lower = min(observed_vals.min(initial=0), predicted_vals.min(initial=0))
+    upper = max(observed_vals.max(initial=1), predicted_vals.max(initial=1))
+    ax.plot([lower, upper], [lower, upper], linestyle="--", color="black", linewidth=1)
+    ax.set_xlabel("Observed optimal k")
+    ax.set_ylabel("Predicted optimal k")
+    ax.set_title("Observed vs predicted")
+
+    fig.tight_layout()
+
+    if save_path is not None:
+        fig.savefig(save_path, dpi=150)
+    else:
+        plt.show()
+
+    return fig
