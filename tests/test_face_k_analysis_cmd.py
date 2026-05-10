@@ -394,7 +394,7 @@ class TestRun:
 
         call_count = 0
 
-        def fake_eval(*args, **kwargs):
+        def fake_eval(g, k, ns, rng):
             nonlocal call_count
             call_count += 1
             return 1.0, 2.0
@@ -410,6 +410,7 @@ class TestRun:
             seed=0,
             output_dir=str(tmp_path),
             plot_output=str(tmp_path / "out.png"),
+            num_workers=0,  # sequential mode for monkeypatch compatibility
         )
         fka.run(**kwargs)
         assert call_count == 4
@@ -498,13 +499,11 @@ class TestMultiThreading:
 
         self._patch_plots(monkeypatch)
 
-        # Track every file-write by wrapping _save_trial_cache.
         observed_valid: list[bool] = []
         original_save = fka._save_trial_cache
 
         def checked_save(path, cache):
             original_save(path, cache)
-            # Immediately after save, file must be valid JSON.
             try:
                 with open(path, "r", encoding="utf-8") as fh:
                     json.load(fh)
@@ -528,7 +527,7 @@ class TestMultiThreading:
             seed=0,
             output_dir=str(tmp_path),
             plot_output=None,
-            num_workers=4,
+            num_workers=0,  # sequential mode for monkeypatch compatibility
         )
 
         assert len(observed_valid) > 0

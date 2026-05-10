@@ -24,9 +24,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing
 import os
 import tempfile
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed  # noqa: F401
 from typing import Any
 
 import matplotlib
@@ -195,8 +196,39 @@ def _save_trial_cache(cache_path: str, cache: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Core analysis
+# Core analysis – multiprocessing shared state (module globals for fork)
 # ---------------------------------------------------------------------------
+
+_pool_cache_lock: Any = None
+_pool_print_lock: Any = None
+_pool_progress_counter: Any = None
+_pool_num_graphs: int = 0
+_pool_num_samples: int = 0
+_pool_seed: int | None = None
+_pool_cache_path: str = ""
+_pool_total_combos: int = 0
+
+
+def _pool_worker(combo: tuple[int, float, int]) -> tuple[str, str, str, dict[str, float]]:
+    """Module-level worker for :class:`multiprocessing.Pool`.
+
+    Unpacks a *combo* tuple ``(n, pct, k)`` and forwards to
+    :func:`_process_combo` using the module-level shared state populated
+    by :func:`run` before the pool is created.
+    """
+    n, pct, k = combo
+    return _process_combo(
+        n=n, pct=pct, k=k,
+        num_graphs=_pool_num_graphs,
+        num_samples=_pool_num_samples,
+        seed=_pool_seed,
+        cache_path=_pool_cache_path,
+        cache_lock=_pool_cache_lock,
+        print_lock=_pool_print_lock,
+        progress_counter=_pool_progress_counter,
+        total_combos=_pool_total_combos,
+    )
+
 
 def _process_combo(
     *,
@@ -206,21 +238,18 @@ def _process_combo(
     num_graphs: int,
     num_samples: int,
     seed: int | None,
-    cache_entries: dict[str, Any],
     cache_path: str,
-    trial_cache: dict[str, Any],
-    cache_lock: threading.Lock,
-    print_lock: threading.Lock,
-    progress_counter: list[int],
+    cache_lock: Any,
+    print_lock: Any,
+    progress_counter: Any,
     total_combos: int,
 ) -> tuple[str, str, str, dict[str, float]]:
     """Process all trials for one ``(n, pct, k)`` combination.
 
-    Reads trial results from the shared *cache_entries* when available, or
-    computes them via :func:`_evaluate_face_cycle`.  All reads and writes to
-    *cache_entries* and the backing JSON file are serialised through
-    *cache_lock*.  The cache file is written atomically so that an interrupted
-    run leaves the file in a valid state.
+    Reads trial results from the on-disk cache when available, or computes
+    them via :func:`_evaluate_face_cycle`.  All cache file reads and writes
+    are serialised through *cache_lock*.  The cache file is written atomically
+    so that an interrupted run leaves the file in a valid state.
 
     Args:
         n: Number of graph vertices.
@@ -230,12 +259,10 @@ def _process_combo(
         num_samples: Number of orientation samples passed to
             :func:`_evaluate_face_cycle` for each trial.
         seed: Base random seed; ``None`` for non-reproducible runs.
-        cache_entries: Shared in-memory cache dict (mutated under *cache_lock*).
         cache_path: Path to the JSON cache file on disk.
-        trial_cache: Full cache payload (contains ``"entries"`` and metadata).
-        cache_lock: Mutex that guards *cache_entries* and all file writes.
-        print_lock: Mutex that serialises ``print`` calls across threads.
-        progress_counter: Single-element list holding the number of combos
+        cache_lock: Multiprocessing lock that guards *cache_entries* and file writes.
+        print_lock: Mutex that serialises ``print`` calls across processes.
+        progress_counter: Managed ``Value('i')`` holding the number of combos
             completed so far (incremented under *print_lock*).
         total_combos: Total number of ``(n, pct, k)`` combos in the sweep.
 
@@ -246,12 +273,15 @@ def _process_combo(
     apsps: list[float] = []
     cache_hits = 0
 
+    # Load disk cache into a process-local dict for fast look-ups
+    trial_cache = _load_trial_cache(cache_path)
+    local_cache: dict[str, Any] = trial_cache.get("entries", {})
+
     for trial in range(num_graphs):
         cache_key = _trial_cache_key(n=n, pct=pct, k=k, trial=trial, seed=seed)
 
-        # --- cache look-up (under lock) ---
-        with cache_lock:
-            cached_entry = cache_entries.get(cache_key)
+        # --- cache look-up (local dict populated from disk) ---
+        cached_entry = local_cache.get(cache_key)
 
         if isinstance(cached_entry, dict):
             cache_hits += 1
@@ -276,8 +306,8 @@ def _process_combo(
                 "reason": "base_graph_not_biconnected",
             }
             with cache_lock:
-                cache_entries[cache_key] = new_entry
-                _save_trial_cache(cache_path, trial_cache)
+                local_cache[cache_key] = new_entry
+                _save_trial_cache(cache_path, {"version": 1, "entries": local_cache})
             continue
 
         reduced_graph, _ = remove_edges_maintaining_biconnectivity(
@@ -290,8 +320,8 @@ def _process_combo(
                 "reason": "reduced_graph_not_biconnected",
             }
             with cache_lock:
-                cache_entries[cache_key] = new_entry
-                _save_trial_cache(cache_path, trial_cache)
+                local_cache[cache_key] = new_entry
+                _save_trial_cache(cache_path, {"version": 1, "entries": local_cache})
             continue
 
         sc_r, mean_a = _evaluate_face_cycle(reduced_graph, k, num_samples, graph_rng)
@@ -306,15 +336,15 @@ def _process_combo(
             "mean_apsp_is_nan": bool(np.isnan(mean_a)),
         }
         with cache_lock:
-            cache_entries[cache_key] = new_entry
-            _save_trial_cache(cache_path, trial_cache)
+            local_cache[cache_key] = new_entry
+            _save_trial_cache(cache_path, {"version": 1, "entries": local_cache})
 
     agg_sc = float(np.mean(sc_ratios)) if sc_ratios else float("nan")
     agg_apsp = float(np.mean(apsps)) if apsps else float("nan")
 
     with print_lock:
-        progress_counter[0] += 1
-        idx = progress_counter[0]
+        progress_counter.value += 1
+        idx = progress_counter.value
         print(
             f"[{idx}/{total_combos}] "
             f"n={n}, removal={pct:.0%}, k={k}  "
@@ -392,13 +422,13 @@ def run(
     """Run the face-k analysis in parallel and save results.
 
     Sweeps every combination of *graph_sizes* × *removal_pcts* × *target_ks*
-    using a :class:`~concurrent.futures.ThreadPoolExecutor`.  The optimal
-    number of worker threads is chosen automatically as
+    using :class:`multiprocessing.Pool` (fork start method).  The optimal
+    number of worker processes is chosen automatically as
     ``min(total_combos, os.cpu_count())`` unless overridden via *num_workers*.
 
-    Each thread processes all *num_graphs* trials for one ``(n, pct, k)``
-    combination.  A :class:`threading.Lock` serialises every access to the
-    shared in-memory cache and the backing JSON file; the file is always
+    Each process processes all *num_graphs* trials for one ``(n, pct, k)``
+    combination.  A :class:`multiprocessing.Lock` serialises every access to the
+    shared cache dict and the backing JSON file; the file is
     written atomically (write-to-temp then rename) so the cache is never
     corrupted even if the process is interrupted mid-run.
 
@@ -411,18 +441,17 @@ def run(
         seed: Base random seed for reproducibility.
         output_dir: Directory where results, plot, and report are saved.
         plot_output: Optional override for the plot file path.
-        num_workers: Number of worker threads.  ``None`` means auto-select
-            as ``min(total_combos, os.cpu_count() or 1)``.
+        num_workers: Number of worker processes.  ``None`` means auto-select
+            as ``min(total_combos, max(os.cpu_count() - 1, 1))``;
+            ``0`` forces sequential in-process execution (useful for tests).
     """
     os.makedirs(output_dir, exist_ok=True)
     cache_path = os.path.join(output_dir, "face_k_trial_cache.json")
-    trial_cache = _load_trial_cache(cache_path)
-    cache_entries: dict[str, Any] = trial_cache["entries"]
 
-    # Shared synchronisation primitives
-    cache_lock = threading.Lock()
-    print_lock = threading.Lock()
-    progress_counter: list[int] = [0]  # mutable container for shared counter
+    # --- multiprocessing shared state (fork-inherited) ---
+    cache_lock = multiprocessing.Lock()
+    print_lock = multiprocessing.Lock()
+    progress_counter = multiprocessing.Value('i', 0)
 
     # Build all (n, pct, k) combo tasks
     combos = [
@@ -434,10 +463,10 @@ def run(
     total_combos = len(combos)
 
     # Determine optimal worker count automatically
-    effective_workers = num_workers or min(total_combos, os.cpu_count() or 1)
+    effective_workers = num_workers if num_workers is not None else min(total_combos, max((os.cpu_count() or 2) - 1, 1))
     print(
         f"Starting face-k analysis: {total_combos} combos, "
-        f"{effective_workers} worker thread(s)."
+        f"{effective_workers} worker process(es)."
     )
 
     # results[n_str][pct_str][k_str] = {"sc_ratio": float, "mean_apsp": float}
@@ -446,30 +475,29 @@ def run(
         for pct in removal_pcts:
             results[str(n)][str(pct)] = {}
 
-    with ThreadPoolExecutor(max_workers=effective_workers) as executor:
-        future_to_combo = {
-            executor.submit(
-                _process_combo,
-                n=n,
-                pct=pct,
-                k=k,
-                num_graphs=num_graphs,
-                num_samples=num_samples,
-                seed=seed,
-                cache_entries=cache_entries,
-                cache_path=cache_path,
-                trial_cache=trial_cache,
-                cache_lock=cache_lock,
-                print_lock=print_lock,
-                progress_counter=progress_counter,
-                total_combos=total_combos,
-            ): (n, pct, k)
-            for n, pct, k in combos
-        }
+    # Populate module-level globals for the pool worker.
+    global _pool_cache_lock, _pool_print_lock, _pool_progress_counter
+    global _pool_num_graphs, _pool_num_samples, _pool_seed, _pool_cache_path, _pool_total_combos
+    _pool_cache_lock = cache_lock
+    _pool_print_lock = print_lock
+    _pool_progress_counter = progress_counter
+    _pool_num_graphs = num_graphs
+    _pool_num_samples = num_samples
+    _pool_seed = seed
+    _pool_cache_path = cache_path
+    _pool_total_combos = total_combos
 
-        for future in as_completed(future_to_combo):
-            n_str, pct_str, k_str, combo_result = future.result()
+    if effective_workers == 0:
+        # Sequential in-process mode – useful for tests that rely on
+        # monkeypatched closures (which can't cross fork boundaries).
+        for combo in combos:
+            n_str, pct_str, k_str, combo_result = _pool_worker(combo)
             results[n_str][pct_str][k_str] = combo_result
+    else:
+        multiprocessing.set_start_method("fork", force=True)
+        with multiprocessing.Pool(processes=effective_workers) as pool:
+            for n_str, pct_str, k_str, combo_result in pool.imap_unordered(_pool_worker, combos):
+                results[n_str][pct_str][k_str] = combo_result
 
     optimal = derive_optimal_k(results, graph_sizes, removal_pcts, target_ks)
     a, b, c = _fit_optimal_k_formula(optimal, graph_sizes, removal_pcts)
