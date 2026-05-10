@@ -26,8 +26,7 @@ import argparse
 import json
 import os
 import tempfile
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any
 
 import matplotlib
