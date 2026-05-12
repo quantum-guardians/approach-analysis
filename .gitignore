@@ -7,3 +7,7 @@ build/
 .env
 .idearesults/face_k_analysis/face_k_trial_cache.json
 results/face_k_analysis/optimal_k_evidence.json
+
+.idea
+.cache
+venv
