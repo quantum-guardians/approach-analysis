@@ -10,6 +10,7 @@ Four categories:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import multiprocessing
 import os
@@ -38,6 +39,8 @@ from src.visualizer import plot_apsp_reduction, plot_flow_stability, plot_prepro
 
 spec = SmallWorldSpec([NHop(2, 1), NHop(3, 1)])
 POSTER_CACHE_VERSION = 2
+
+TrialTask = tuple[int, int, int | None, str | None]
 
 def _as_finite_or_nan(value: Any) -> float:
     value = float(value)
@@ -452,6 +455,21 @@ def _run_mr2s_trial_with_cache(
     cache.set(cache_key, result)
     return n, trial, result
 
+def _iter_completed_trials(
+    worker: Any,
+    tasks: list[TrialTask],
+    num_workers: int,
+) -> Any:
+    """Yield trial results from non-daemonic worker processes as they finish."""
+    ctx = multiprocessing.get_context("fork")
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=num_workers,
+        mp_context=ctx,
+    ) as executor:
+        futures = [executor.submit(worker, task) for task in tasks]
+        for future in concurrent.futures.as_completed(futures):
+            yield future.result()
+
 def _aggregate_mr2s_results(results: dict[str, Any], trial_results: dict[int, list[dict[str, Any]]]) -> None:
     results["mr2s"] = {
         "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
@@ -541,14 +559,12 @@ def run(
             _print_trial_progress(index, total_tasks, n, trial, result["timings"])
             trial_results[n].append(result)
     else:
-        ctx = multiprocessing.get_context("fork")
-        with ctx.Pool(processes=effective_workers) as pool:
-            for index, (n, trial, result) in enumerate(
-                pool.imap_unordered(_run_trial_with_cache, tasks),
-                start=1,
-            ):
-                _print_trial_progress(index, total_tasks, n, trial, result["timings"])
-                trial_results[n].append(result)
+        for index, (n, trial, result) in enumerate(
+            _iter_completed_trials(_run_trial_with_cache, tasks, effective_workers),
+            start=1,
+        ):
+            _print_trial_progress(index, total_tasks, n, trial, result["timings"])
+            trial_results[n].append(result)
 
     for n in sizes:
         a_rsa, f_rsa = [], []
@@ -648,14 +664,12 @@ def run_mr2s_only(
             _print_mr2s_trial_progress(index, total_tasks, n, trial, result["timings"])
             trial_results[n].append(result)
     else:
-        ctx = multiprocessing.get_context("fork")
-        with ctx.Pool(processes=effective_workers) as pool:
-            for index, (n, trial, result) in enumerate(
-                pool.imap_unordered(_run_mr2s_trial_with_cache, tasks),
-                start=1,
-            ):
-                _print_mr2s_trial_progress(index, total_tasks, n, trial, result["timings"])
-                trial_results[n].append(result)
+        for index, (n, trial, result) in enumerate(
+            _iter_completed_trials(_run_mr2s_trial_with_cache, tasks, effective_workers),
+            start=1,
+        ):
+            _print_mr2s_trial_progress(index, total_tasks, n, trial, result["timings"])
+            trial_results[n].append(result)
 
     _aggregate_mr2s_results(results, trial_results)
 
