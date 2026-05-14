@@ -426,6 +426,16 @@ def _poster_mr2s_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
         seed=seed,
     )
 
+def _poster_random_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
+    """Return the stable cache key for one random-only poster trial."""
+    return generate_cache_key(
+        "poster-results-random-trial",
+        version=POSTER_CACHE_VERSION,
+        n=n,
+        trial=trial,
+        seed=seed,
+    )
+
 def _run_trial_with_cache(
     task: tuple[int, int, int | None, str | None]
 ) -> tuple[int, int, dict[str, Any]]:
@@ -480,6 +490,44 @@ def _run_mr2s_trial_with_cache(
         return n, trial, cached_result
 
     n, trial, result = _run_mr2s_trial((n, trial, seed))
+    result["cache_hit"] = False
+    result.setdefault("timings", {})["cache_hit"] = False
+    cache.set(cache_key, result)
+    return n, trial, result
+
+def _run_random_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
+    n, trial, seed = task
+    trial_seed = (seed + trial * 100 + n) if seed is not None else None
+    graph = _generate_delaunay_graph(n, trial_seed)
+
+    start = time.monotonic()
+    res_rnd = _calculate_random_baseline(graph, n, trial_seed)
+    timings = {"random": time.monotonic() - start}
+
+    return n, trial, {
+        "random": res_rnd,
+        "timings": timings,
+    }
+
+def _run_random_trial_with_cache(
+    task: tuple[int, int, int | None, str | None]
+) -> tuple[int, int, dict[str, Any]]:
+    n, trial, seed, cache_dir = task
+    if cache_dir is None:
+        n, trial, result = _run_random_trial((n, trial, seed))
+        result["cache_hit"] = False
+        result.setdefault("timings", {})["cache_hit"] = False
+        return n, trial, result
+
+    cache = SimpleCache(cache_dir)
+    cache_key = _poster_random_trial_cache_key(n, trial, seed)
+    cached_result = cache.get(cache_key)
+    if isinstance(cached_result, dict):
+        cached_result["cache_hit"] = True
+        cached_result.setdefault("timings", {})["cache_hit"] = True
+        return n, trial, cached_result
+
+    n, trial, result = _run_random_trial((n, trial, seed))
     result["cache_hit"] = False
     result.setdefault("timings", {})["cache_hit"] = False
     cache.set(cache_key, result)
@@ -540,6 +588,22 @@ def _aggregate_mr2s_results(results: dict[str, Any], trial_results: dict[int, li
         results["mr2s"]["phys_mean"].append(_mean_finite(pmean_cls))
         results["mr2s"]["phys_min"].append(_mean_finite(pmin_cls))
         results["mr2s"]["partition"].append(partitions)
+
+def _aggregate_random_results(results: dict[str, Any], trial_results: dict[int, list[dict[str, Any]]]) -> None:
+    results["random"] = {"apsp": [], "flow": []}
+
+    for n in results["sizes"]:
+        a_rnd, f_rnd = [], []
+
+        print(f"\n>>> Aggregating random-only size n={n}")
+
+        for result in trial_results[n]:
+            res_rnd = _normalize_random_baseline(result["random"])
+            a_rnd.append(res_rnd["apsp"])
+            f_rnd.append(res_rnd["flow"])
+
+        results["random"]["apsp"].append(_mean_finite(a_rnd))
+        results["random"]["flow"].append(_mean_finite(f_rnd))
 
 def run(
     sizes: list[int],
@@ -648,6 +712,73 @@ def run(
 
     _plot_results(results, output_dir)
 
+def run_random_only(
+    sizes: list[int] | None,
+    num_graphs: int,
+    seed: int | None,
+    output_dir: str,
+    num_workers: int | None = None,
+    cache_dir: str | None = None,
+    use_cache: bool = True,
+    source_results_path: str | None = None,
+) -> None:
+    os.makedirs(output_dir, exist_ok=True)
+    if source_results_path is None:
+        source_results_path = os.path.join(output_dir, "poster_results.json")
+    if not os.path.exists(source_results_path):
+        raise FileNotFoundError(
+            f"Random-only mode needs existing results to merge: {source_results_path}"
+        )
+
+    with open(source_results_path) as f:
+        results = json.load(f)
+    if sizes is None:
+        sizes = results["sizes"]
+    results["sizes"] = sizes
+
+    if cache_dir is None and use_cache:
+        cache_dir = os.path.join(output_dir, "poster_random_trial_cache")
+    elif not use_cache:
+        cache_dir = None
+
+    tasks = [(n, trial, seed, cache_dir) for n in sizes for trial in range(num_graphs)]
+    total_tasks = len(tasks)
+    effective_workers = (
+        num_workers
+        if num_workers is not None
+        else min(total_tasks, max((os.cpu_count() or 2) - 1, 1))
+    )
+
+    print(
+        f"Starting random-only poster results: {len(sizes)} size(s), "
+        f"{num_graphs} graph(s) each, {effective_workers} worker process(es)."
+    )
+    print(f"Merging into: {source_results_path}")
+    if cache_dir is not None:
+        print(f"Using random-only trial cache: {cache_dir}")
+
+    trial_results: dict[int, list[dict[str, Any]]] = {n: [] for n in sizes}
+
+    if effective_workers == 0:
+        for index, task in enumerate(tasks, start=1):
+            n, trial, result = _run_random_trial_with_cache(task)
+            _print_random_trial_progress(index, total_tasks, n, trial, result["timings"])
+            trial_results[n].append(result)
+    else:
+        for index, (n, trial, result) in enumerate(
+            _iter_completed_trials(_run_random_trial_with_cache, tasks, effective_workers),
+            start=1,
+        ):
+            _print_random_trial_progress(index, total_tasks, n, trial, result["timings"])
+            trial_results[n].append(result)
+
+    _aggregate_random_results(results, trial_results)
+
+    with open(os.path.join(output_dir, "poster_results.json"), "w") as f:
+        json.dump(results, f, indent=2)
+
+    _plot_results(results, output_dir)
+
 def run_mr2s_only(
     sizes: list[int],
     num_graphs: int,
@@ -749,6 +880,22 @@ def _print_mr2s_trial_progress(
         f"{timings['clustered_embed']:.2f}s"
     )
 
+def _print_random_trial_progress(
+    index: int,
+    total: int,
+    n: int,
+    trial: int,
+    timings: dict[str, float],
+) -> None:
+    if timings.get("cache_hit"):
+        print(f"[{index}/{total}] n={n}, trial={trial}: random-only cache hit")
+        return
+
+    print(
+        f"[{index}/{total}] n={n}, trial={trial}: "
+        f"Random {timings['random']:.2f}s"
+    )
+
 def _plot_results(results: dict, output_dir: str):
     sizes = results["sizes"]
     plot_apsp_reduction(sizes, results["random"]["apsp"], results["raw_sa"]["apsp"], results["global"]["apsp"], results["mr2s"]["apsp"], save_path=os.path.join(output_dir, "apsp_reduction.png"))
@@ -757,7 +904,16 @@ def _plot_results(results: dict, output_dir: str):
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     p = subparsers.add_parser("poster-results", help="Generate visualization data for MR2S poster.")
-    p.add_argument("--sizes", type=int, nargs="+", default=[100, 200, 300, 400, 500])
+    p.add_argument(
+        "--sizes",
+        type=int,
+        nargs="+",
+        default=None,
+        help=(
+            "Graph sizes to evaluate; defaults to 100 200 300 400 500, "
+            "or existing poster_results.json sizes in random-only mode."
+        ),
+    )
     p.add_argument("--num-graphs", type=int, default=5)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output-dir", type=str, default="results/poster")
@@ -784,16 +940,25 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Recompute only DnCMr2sSolver results and merge into existing poster_results.json.",
     )
     p.add_argument(
+        "--random-only",
+        action="store_true",
+        help="Recompute only random baseline results and merge into existing poster_results.json.",
+    )
+    p.add_argument(
         "--source-results",
         type=str,
         default=None,
-        help="Existing poster_results.json to merge in MR2S-only mode.",
+        help="Existing poster_results.json to merge in MR2S-only or random-only mode.",
     )
     p.set_defaults(func=_dispatch)
 
 def _dispatch(args: argparse.Namespace) -> None:
-    if args.mr2s_only:
-        run_mr2s_only(
+    default_sizes = [100, 200, 300, 400, 500]
+    if args.mr2s_only and args.random_only:
+        raise ValueError("--mr2s-only and --random-only cannot be used together.")
+
+    if args.random_only:
+        run_random_only(
             args.sizes,
             args.num_graphs,
             args.seed,
@@ -805,8 +970,21 @@ def _dispatch(args: argparse.Namespace) -> None:
         )
         return
 
+    if args.mr2s_only:
+        run_mr2s_only(
+            args.sizes or default_sizes,
+            args.num_graphs,
+            args.seed,
+            args.output_dir,
+            args.num_workers,
+            args.cache_dir,
+            not args.no_cache,
+            args.source_results,
+        )
+        return
+
     run(
-        args.sizes,
+        args.sizes or default_sizes,
         args.num_graphs,
         args.seed,
         args.output_dir,

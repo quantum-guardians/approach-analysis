@@ -153,6 +153,56 @@ def test_run_mr2s_only_merges_with_existing_results(tmp_path, monkeypatch) -> No
     assert merged["mr2s"]["partition"] == [[{"selected_reason": "test"}]]
 
 
+def test_run_random_only_merges_with_existing_results(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(pr, "_plot_results", lambda results, output_dir: None)
+
+    existing = {
+        "sizes": [8],
+        "mr2s": {"apsp": [1.0], "flow": [2.0]},
+        "global": {
+            "apsp": [3.0],
+            "flow": [4.0],
+            "qubo_vars": [5.0],
+            "subgraph_size": [6.0],
+        },
+        "raw_sa": {"apsp": [7.0], "flow": [8.0]},
+        "random": {"apsp": [0.0], "flow": [0.0]},
+    }
+    results_path = tmp_path / "poster_results.json"
+    results_path.write_text(json.dumps(existing))
+
+    def fake_random_trial(task):
+        n, trial, seed = task
+        value = float(n + trial + (seed or 0))
+        return n, trial, {
+            "random": {
+                "apsp": value,
+                "flow": value + 1,
+                "sample_count": 1,
+                "strong_sample_count": 1,
+            },
+            "timings": {"random": 0.0},
+        }
+
+    monkeypatch.setattr(pr, "_run_random_trial", fake_random_trial)
+
+    pr.run_random_only(
+        sizes=None,
+        num_graphs=1,
+        seed=0,
+        output_dir=str(tmp_path),
+        num_workers=0,
+        use_cache=False,
+    )
+
+    merged = json.loads(results_path.read_text())
+    assert merged["raw_sa"] == existing["raw_sa"]
+    assert merged["global"] == existing["global"]
+    assert merged["mr2s"] == existing["mr2s"]
+    assert merged["random"]["apsp"] == [8.0]
+    assert merged["random"]["flow"] == [9.0]
+
+
 def test_normalize_random_baseline_converts_legacy_zero_to_nan() -> None:
     normalized = pr._normalize_random_baseline({"apsp": 0.0, "flow": 0.0})
 

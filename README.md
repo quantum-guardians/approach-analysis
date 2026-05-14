@@ -11,6 +11,7 @@ Analysing the n-hop approach on random directed graphs.
 | `src/score_calculator.py` | NumPy 기반 APSP 합계 및 n-hop 이웃 수(n=2,3,4) 계산 |
 | `src/visualizer.py` | APSP 점수 간 상관관계 산점도, n-hop 수 / 연결성 비교 그래프, face-k 분석 시각화 |
 | `src/commands/face_k_analysis.py` | `mr2s-module`의 `FaceCycle`을 활용한 최적 face-cycle target k 분석 |
+| `src/commands/poster_results.py` | MR2S poster용 Raw SA / Global QUBO / DnC MR2S / Random baseline 비교 데이터와 플롯 생성 |
 
 ## 설치 (Installation)
 
@@ -20,7 +21,7 @@ pip install -r requirements.txt
 
 ## 사용법 (Usage)
 
-`main.py`는 두 개의 서브 커맨드를 제공합니다.
+`main.py`는 네 개의 서브 커맨드를 제공합니다.
 
 ### `analyse` – 단일 그래프의 APSP·n-hop 상관관계 분석
 
@@ -122,11 +123,70 @@ python main.py face-k-analysis \
 | `--seed` | None | 재현성을 위한 기본 랜덤 시드 |
 | `--output-dir` | `results/face_k_analysis` | 결과 JSON·플롯·보고서 저장 디렉토리 |
 | `--output` | `<output-dir>/face_k_analysis.png` | 플롯 파일 경로 재정의 |
+| `--num-workers` | min(조합 수, CPU 코어 수) | 조합별 trial 실행용 병렬 워커 수 |
 
 결과 파일:
 - `face_k_results.json` – 전체 수치 결과
 - `face_k_analysis.png` – SC 비율 / APSP 추이 2×2 그래프
 - `report.md` – 실험 요약 및 경험적 최적 k 공식 보고서
+
+---
+
+### `poster-results` – MR2S poster 비교 데이터 생성
+
+Raw SA(`SAMR2SSolver`), Global QUBO(`QuboMR2SSolver`), DnC MR2S(`DnCMr2sSolver`),
+Random baseline을 같은 Delaunay 그래프 trial에서 비교합니다. 결과는 JSON으로 저장되고,
+APSP reduction, flow stability, preprocessing scalability 플롯을 함께 생성합니다.
+
+Random baseline은 임의 방향 조합을 샘플링합니다. Flow 점수는 강연결 여부와 관계없이 모든 샘플에서 계산하고,
+APSP는 강연결 샘플에서만 계산합니다. 강연결 샘플이 없으면 random APSP는 NaN으로 남깁니다.
+
+```bash
+# 기본 실행 (정점 100/200/300/400/500, 크기별 5개 그래프)
+python main.py poster-results
+
+# 파라미터 지정
+python main.py poster-results \
+    --sizes 100 200 300 \
+    --num-graphs 3 \
+    --seed 42 \
+    --output-dir results/poster
+
+# DnC MR2S 결과만 다시 계산해서 기존 poster_results.json에 병합
+python main.py poster-results \
+    --mr2s-only \
+    --output-dir results/poster \
+    --num-graphs 5 \
+    --seed 42
+
+# Random baseline만 다시 계산해서 기존 poster_results.json에 병합
+python main.py poster-results \
+    --random-only \
+    --output-dir results/poster \
+    --num-graphs 5 \
+    --seed 42
+```
+
+#### `poster-results` CLI 옵션
+
+| 옵션 | 기본값 | 설명 |
+|---|---|---|
+| `--sizes` | 100 200 300 400 500 | 탐색할 그래프 정점 수 목록. `--random-only`에서 생략하면 기존 `poster_results.json`의 `sizes` 사용 |
+| `--num-graphs` | 5 | 크기별 독립 그래프 trial 수 |
+| `--seed` | 42 | 재현성을 위한 기본 랜덤 시드. trial seed는 `seed + trial * 100 + n` |
+| `--output-dir` | `results/poster` | 결과 JSON·플롯 저장 디렉토리 |
+| `--cache-dir` | `<output-dir>/poster_trial_cache` | trial cache 디렉토리. 모드별 기본값은 full run / MR2S-only / random-only마다 다름 |
+| `--no-cache` | False | trial cache 읽기·쓰기 비활성화 |
+| `--num-workers` | min(trial 수, CPU 코어 수 - 1) | trial 실행용 병렬 worker process 수. `0`이면 순차 실행 |
+| `--mr2s-only` | False | DnC MR2S 결과만 재계산해 기존 `poster_results.json`에 병합 |
+| `--random-only` | False | Random baseline만 재계산해 기존 `poster_results.json`에 병합 |
+| `--source-results` | `<output-dir>/poster_results.json` | `--mr2s-only` 또는 `--random-only` 병합에 사용할 기존 결과 JSON |
+
+결과 파일:
+- `poster_results.json` – size별 solver 비교 수치
+- `apsp_reduction.png` – Random / Raw SA / Global / DnC MR2S 정규화 APSP 비교
+- `flow_stability.png` – solver별 flow imbalance 비교
+- `scalability.png` – QUBO 변수 수, subgraph 크기, physical qubit 추정치 비교
 
 ## 테스트 (Tests)
 
@@ -138,7 +198,7 @@ python -m pytest tests/ -v
 
 ```
 n-hop-approach-analysis/
-├── main.py               # 실행 진입점 (analyse / nhop-connectivity / face-k-analysis 서브 커맨드)
+├── main.py               # 실행 진입점 (analyse / nhop-connectivity / face-k-analysis / poster-results)
 ├── requirements.txt
 ├── src/
 │   ├── graph_generator.py
@@ -148,7 +208,8 @@ n-hop-approach-analysis/
 │   └── commands/
 │       ├── analyse.py
 │       ├── nhop_connectivity.py
-│       └── face_k_analysis.py
+│       ├── face_k_analysis.py
+│       └── poster_results.py
 ├── results/
 │   └── face_k_analysis/
 │       ├── face_k_results.json
@@ -160,6 +221,6 @@ n-hop-approach-analysis/
     ├── test_score_calculator.py
     ├── test_visualizer.py
     ├── test_nhop_connectivity_cmd.py
-    └── test_face_k_analysis_cmd.py
+    ├── test_face_k_analysis_cmd.py
+    └── test_poster_results_cmd.py
 ```
-
