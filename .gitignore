@@ -11,3 +11,5 @@ results/face_k_analysis/optimal_k_evidence.json
 .idea
 .cache
 venv
+
+.DS_store
