@@ -172,9 +172,9 @@ python main.py poster-results \
 
 | 옵션 | 기본값 | 설명 |
 |---|---|---|
-| `--sizes` | 5 10 20 30 | 실험할 그래프 정점 수 목록 |
+| `--sizes` | 100 200 300 400 500 | 실험할 그래프 정점 수 목록 |
 | `--num-graphs` | 5 | size별 독립 그래프 생성 수 |
-| `--seed` | None | 재현성을 위한 기본 랜덤 시드 |
+| `--seed` | 42 | 재현성을 위한 기본 랜덤 시드 |
 | `--output-dir` | `results/poster` | 결과 JSON·플롯·cache 저장 디렉토리 |
 | `--num-workers` | CPU 기반 자동값 | trial 병렬 실행 process 수. 0이면 순차 실행 |
 | `--cache-dir` | `<output-dir>/poster_trial_cache` | trial cache 디렉토리 |
