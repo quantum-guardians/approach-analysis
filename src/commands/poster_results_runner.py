@@ -688,7 +688,7 @@ class Mr2sOnlyPosterResultsRunner(PosterResultsRunner):
             f"Starting MR2S-only poster results: {len(self.config.sizes)} size(s), "
             f"{self.config.num_graphs} graph(s) each, {workers} worker process(es)."
         )
-        print(f"Merging into: {source_results_path}")
+        print(f"Merging source results from: {source_results_path}")
         if cache_dir is not None:
             print(f"Using MR2S-only trial cache: {cache_dir}")
 
