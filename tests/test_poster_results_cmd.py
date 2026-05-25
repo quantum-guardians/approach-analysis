@@ -14,6 +14,9 @@ from src.commands.poster_results_runner import (
     PosterResultsAggregator,
     PosterResultsRunner,
     PosterRunConfig,
+    RESULT_SERIES_KEYS,
+    _merge_nested_results_by_size,
+    _merge_results_by_size,
 )
 from src.commands.poster_results_models import Mr2sSolverResult, TrialTimings
 
@@ -166,6 +169,87 @@ def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeyp
     assert merged["raw_sa"]["apsp"][1] == 9.0
     assert math.isnan(merged["timings"]["graph"][0])
     assert merged["timings"]["graph"][1] == 29.0
+
+
+def test_merge_results_pads_missing_series_for_old_result_schema() -> None:
+    existing = {
+        "sizes": [5],
+        "mr2s": {"apsp": [1.0]},
+        "timings": {"global_solve": [2.0]},
+    }
+    updates = {
+        "sizes": [10],
+        "mr2s": {
+            "apsp": [10.0],
+            "partition": [[{"selected_reason": "new"}]],
+        },
+        "timings": {
+            "global_solve": [20.0],
+            "robbin_mr2s_solve": [30.0],
+        },
+    }
+
+    merged = _merge_results_by_size(
+        existing,
+        updates,
+        replace_sections=set(RESULT_SERIES_KEYS),
+    )
+
+    assert merged["sizes"] == [5, 10]
+    assert merged["mr2s"]["apsp"] == [1.0, 10.0]
+    assert merged["mr2s"]["partition"] == [[], [{"selected_reason": "new"}]]
+    assert merged["timings"]["global_solve"] == [2.0, 20.0]
+    assert math.isnan(merged["timings"]["robbin_mr2s_solve"][0])
+    assert merged["timings"]["robbin_mr2s_solve"][1] == 30.0
+
+
+def test_merge_nested_results_pads_missing_strategy_and_variant_sizes() -> None:
+    existing = {
+        "sizes": [5],
+        "dnc_strategies": {},
+        "mr2s_variants": {},
+    }
+    updates = {
+        "sizes": [10],
+        "dnc_strategies": {
+            "poster": {
+                "apsp": [10.0],
+                "partition": [[{"selected_reason": "new"}]],
+            },
+        },
+        "mr2s_variants": {
+            "robbin_mr2s": {
+                "apsp": [20.0],
+                "phys_total": [21.0],
+            },
+        },
+    }
+    merged = {"sizes": [5, 10]}
+
+    merged = _merge_nested_results_by_size(
+        merged,
+        existing,
+        updates,
+        "dnc_strategies",
+        replace_existing=True,
+    )
+    merged = _merge_nested_results_by_size(
+        merged,
+        existing,
+        updates,
+        "mr2s_variants",
+        replace_existing=True,
+    )
+
+    assert math.isnan(merged["dnc_strategies"]["poster"]["apsp"][0])
+    assert merged["dnc_strategies"]["poster"]["apsp"][1] == 10.0
+    assert merged["dnc_strategies"]["poster"]["partition"] == [
+        [],
+        [{"selected_reason": "new"}],
+    ]
+    assert math.isnan(merged["mr2s_variants"]["robbin_mr2s"]["apsp"][0])
+    assert merged["mr2s_variants"]["robbin_mr2s"]["apsp"][1] == 20.0
+    assert len(merged["mr2s_variants"]["robbin_mr2s"]["phys_total"]) == 2
 
 
 def test_runner_accepts_custom_aggregator_and_plotter(tmp_path) -> None:

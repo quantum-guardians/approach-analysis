@@ -401,31 +401,25 @@ def _merge_results_by_size(
             existing_by_size = _series_by_size(existing, section, key)
             update_by_size = _series_by_size(updates, section, key)
             values = []
-            has_value = False
+            has_value = bool(existing_by_size or update_by_size)
 
             for size in output_sizes:
                 use_update = size in update_size_set and (
                     section in replace_sections or size not in existing_size_set
                 )
-                value_found = False
-                value = None
 
                 if use_update and size in update_by_size:
                     value = update_by_size[size]
-                    value_found = True
                 elif size in existing_by_size:
                     value = existing_by_size[size]
-                    value_found = True
                 elif size in update_by_size:
                     value = update_by_size[size]
-                    value_found = True
-                elif section == "timings" and update_by_size:
-                    value = float("nan")
-                    value_found = True
+                elif has_value:
+                    value = _missing_series_value(key)
+                else:
+                    continue
 
-                if value_found:
-                    values.append(value)
-                    has_value = True
+                values.append(value)
 
             if has_value:
                 merged[section][key] = values
@@ -451,18 +445,17 @@ def _merge_timing_keys_by_size(
         existing_by_size = _series_by_size(existing, "timings", key)
         update_by_size = _series_by_size(updates, "timings", key)
         values = []
-        has_value = False
+        has_value = bool(existing_by_size or update_by_size)
 
         for size in output_sizes:
             if key in replace_keys and size in update_size_set and size in update_by_size:
                 values.append(update_by_size[size])
-                has_value = True
             elif size in existing_by_size:
                 values.append(existing_by_size[size])
-                has_value = True
             elif size in update_by_size:
                 values.append(update_by_size[size])
-                has_value = True
+            elif has_value:
+                values.append(_missing_series_value(key))
 
         if has_value:
             merged["timings"][key] = values
@@ -492,23 +485,28 @@ def _merge_nested_results_by_size(
             existing_by_size = _nested_series_by_size(existing, section, item_name, key)
             update_by_size = _nested_series_by_size(updates, section, item_name, key)
             values = []
-            has_value = False
+            has_value = bool(existing_by_size or update_by_size)
             for size in output_sizes:
                 use_update = size in update_sizes and (
                     replace_existing or size not in existing_sizes
                 )
                 if use_update and size in update_by_size:
                     values.append(update_by_size[size])
-                    has_value = True
                 elif size in existing_by_size:
                     values.append(existing_by_size[size])
-                    has_value = True
                 elif size in update_by_size:
                     values.append(update_by_size[size])
-                    has_value = True
+                elif has_value:
+                    values.append(_missing_series_value(key))
             if has_value:
                 merged[section][item_name][key] = values
     return merged
+
+
+def _missing_series_value(key: str) -> Any:
+    if key == "partition":
+        return []
+    return float("nan")
 
 
 def _nested_series_by_size(
