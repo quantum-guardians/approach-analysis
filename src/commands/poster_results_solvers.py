@@ -217,7 +217,7 @@ def _build_dnc_qubo_solver(
         mr2s_solver=_build_qubo_solver(),
     )
     if partition_strategy is not None:
-        # mr2s-module 0.0.7의 graph_partition_strategy hook에 poster용 전략을 주입한다.
+        # mr2s-module 0.0.8의 graph_partition_strategy hook에 poster용 전략을 주입한다.
         partition_strategy.mr2s_solver = solver.mr2s_solver
         partition_strategy.face_cycle = solver.face_cycle
         solver.graph_partition_strategy = partition_strategy
