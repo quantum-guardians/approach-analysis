@@ -292,25 +292,27 @@ def _run_clustered_solver(graph: Any, n: int) -> tuple[dict[str, Any], dict[str,
         "partition": partition_diagnostics,
     }, timings
 
-def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
-    """Run all poster-result solvers for one graph trial."""
-    n, trial, seed = task
-    trial_seed = (seed + trial * 100 + n) if seed is not None else None
-    graph = _generate_delaunay_graph(n, trial_seed)
-    timings: dict[str, float] = {}
+def _trial_seed(n: int, trial: int, seed: int | None) -> int | None:
+    return (seed + trial * 100 + n) if seed is not None else None
 
-    # 1. Raw SA
+def _run_raw_sa_trial(n: int, trial: int, seed: int | None) -> tuple[dict[str, Any], dict[str, float]]:
+    trial_seed = _trial_seed(n, trial, seed)
+    graph = _generate_delaunay_graph(n, trial_seed)
     start = time.monotonic()
     solver_rsa = _build_sa_solver(seed=trial_seed)
     solver_rsa.face_cycle = None
     sol_rsa = solver_rsa.run(_nx_to_mr2s_graph(graph))
-    timings["raw_sa"] = time.monotonic() - start
-    res_rsa = {
+    timings = {"raw_sa": time.monotonic() - start}
+    return {
         "apsp": sol_rsa.score.apsp_sum / (n * (n - 1)),
         "flow": sol_rsa.score.flow_score,
-    }
+    }, timings
 
-    # 2. Global
+def _run_global_trial(n: int, trial: int, seed: int | None) -> tuple[dict[str, Any], dict[str, float]]:
+    trial_seed = _trial_seed(n, trial, seed)
+    graph = _generate_delaunay_graph(n, trial_seed)
+    timings: dict[str, float] = {}
+
     start = time.monotonic()
     solver_glb = _build_qubo_solver()
     solver_glb.face_cycle = None
@@ -322,19 +324,17 @@ def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, A
     phys_glb = _estimate_physical_qubits(bqm_glb)
     timings["global_embed"] = time.monotonic() - start
 
-    res_glb = {
+    return {
         "apsp": sol_glb.score.apsp_sum / (n * (n - 1)),
         "flow": sol_glb.score.flow_score,
         "qvars": len(bqm_glb.variables),
         "sg": len(bqm_glb.variables),
         "pt": phys_glb,
-    }
+    }, timings
 
-    # 3. Clustered
-    res_cls, clustered_timings = _run_clustered_solver(graph, n)
-    timings.update(clustered_timings)
-
-    # 4. Random
+def _run_random_trial(n: int, trial: int, seed: int | None) -> tuple[dict[str, Any], dict[str, float]]:
+    trial_seed = (seed + trial * 100 + n) if seed is not None else None
+    graph = _generate_delaunay_graph(n, trial_seed)
     start = time.monotonic()
     random_samples = list(
         sample_strongly_connected_orientations(
@@ -363,12 +363,42 @@ def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, A
             "flow": float("nan"),
             "sample_count": 0,
         }
-    timings["random"] = time.monotonic() - start
+    return res_rnd, {"random": time.monotonic() - start}
+
+def _run_poster_algorithm(
+    n: int,
+    trial: int,
+    seed: int | None,
+    algorithm: str,
+) -> tuple[dict[str, Any], dict[str, float]]:
+    if algorithm == "raw_sa":
+        return _run_raw_sa_trial(n, trial, seed)
+    if algorithm == "global":
+        return _run_global_trial(n, trial, seed)
+    if algorithm == "mr2s":
+        _, _, result = _run_mr2s_trial((n, trial, seed))
+        return result["mr2s"], result["timings"]
+    if algorithm == "random":
+        return _run_random_trial(n, trial, seed)
+    raise ValueError(f"Unknown poster algorithm: {algorithm}")
+
+def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
+    """Run all poster-result solvers for one graph trial."""
+    n, trial, seed = task
+    res_rsa, rsa_timings = _run_raw_sa_trial(n, trial, seed)
+    res_glb, glb_timings = _run_global_trial(n, trial, seed)
+    _, _, mr2s_result = _run_mr2s_trial((n, trial, seed))
+    res_rnd, rnd_timings = _run_random_trial(n, trial, seed)
+    timings = {}
+    timings.update(rsa_timings)
+    timings.update(glb_timings)
+    timings.update(mr2s_result["timings"])
+    timings.update(rnd_timings)
 
     return n, trial, {
         "raw_sa": res_rsa,
         "global": res_glb,
-        "mr2s": res_cls,
+        "mr2s": mr2s_result["mr2s"],
         "random": res_rnd,
         "timings": timings,
     }
@@ -488,6 +518,70 @@ def _aggregate_mr2s_results(results: dict[str, Any], trial_results: dict[int, li
         results["mr2s"]["phys_min"].append(_mean_finite(pmin_cls))
         results["mr2s"]["partition"].append(partitions)
 
+def _empty_poster_results(sizes: list[int]) -> dict[str, Any]:
+    return {
+        "sizes": sizes,
+        "mr2s": {
+            "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
+            "phys_total": [], "phys_max": [], "phys_mean": [], "phys_min": [],
+            "partition": [],
+        },
+        "global": {
+            "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
+            "phys_total": [], "phys_max": [], "phys_mean": [], "phys_min": []
+        },
+        "raw_sa": {"apsp": [], "flow": []},
+        "random": {"apsp": [], "flow": []},
+    }
+
+def aggregate_trial_results(
+    sizes: list[int],
+    trial_results: dict[int, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    results = _empty_poster_results(sizes)
+
+    for n in sizes:
+        a_rsa, f_rsa = [], []
+        a_glb, f_glb, v_glb, s_glb, p_glb = [], [], [], [], []
+        a_cls, f_cls, v_cls, s_cls, pt_cls, pmax_cls, pmean_cls, pmin_cls = [], [], [], [], [], [], [], []
+        a_rnd, f_rnd = [], []
+        partitions = []
+
+        print(f"\n>>> Aggregating size n={n}")
+
+        for result in trial_results[n]:
+            res_rsa = result["raw_sa"]
+            res_glb = result["global"]
+            res_cls = result["mr2s"]
+            res_rnd = _normalize_random_baseline(result["random"])
+            a_rsa.append(res_rsa["apsp"]); f_rsa.append(res_rsa["flow"])
+            a_glb.append(res_glb["apsp"]); f_glb.append(res_glb["flow"]); v_glb.append(res_glb["qvars"]); s_glb.append(res_glb["sg"]); p_glb.append(res_glb["pt"])
+            a_cls.append(res_cls["apsp"]); f_cls.append(res_cls["flow"]); v_cls.append(res_cls["qvars"]); s_cls.append(res_cls["sg"])
+            pt_cls.append(res_cls["phys_total"]); pmax_cls.append(res_cls["phys_max"]); pmean_cls.append(res_cls["phys_mean"]); pmin_cls.append(res_cls["phys_min"])
+            partitions.append(res_cls.get("partition", {}))
+            a_rnd.append(res_rnd["apsp"]); f_rnd.append(res_rnd["flow"])
+
+        results["raw_sa"]["apsp"].append(_mean_finite(a_rsa))
+        results["raw_sa"]["flow"].append(_mean_finite(f_rsa))
+        results["global"]["apsp"].append(_mean_finite(a_glb))
+        results["global"]["flow"].append(_mean_finite(f_glb))
+        results["global"]["qubo_vars"].append(_mean_finite(v_glb))
+        results["global"]["subgraph_size"].append(_mean_finite(s_glb))
+        results["global"]["phys_total"].append(_mean_finite(p_glb))
+        results["mr2s"]["apsp"].append(_mean_finite(a_cls))
+        results["mr2s"]["flow"].append(_mean_finite(f_cls))
+        results["mr2s"]["qubo_vars"].append(_mean_finite(v_cls))
+        results["mr2s"]["subgraph_size"].append(_mean_finite(s_cls))
+        results["mr2s"]["phys_total"].append(_mean_finite(pt_cls))
+        results["mr2s"]["phys_max"].append(_mean_finite(pmax_cls))
+        results["mr2s"]["phys_mean"].append(_mean_finite(pmean_cls))
+        results["mr2s"]["phys_min"].append(_mean_finite(pmin_cls))
+        results["mr2s"]["partition"].append(partitions)
+        results["random"]["apsp"].append(_mean_finite(a_rnd))
+        results["random"]["flow"].append(_mean_finite(f_rnd))
+
+    return results
+
 def run(
     sizes: list[int],
     num_graphs: int,
@@ -502,21 +596,6 @@ def run(
         cache_dir = os.path.join(output_dir, "poster_trial_cache")
     elif not use_cache:
         cache_dir = None
-
-    results = {
-        "sizes": sizes,
-        "mr2s": {
-            "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
-            "phys_total": [], "phys_max": [], "phys_mean": [], "phys_min": [],
-            "partition": [],
-        },
-        "global": {
-            "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
-            "phys_total": [], "phys_max": [], "phys_mean": [], "phys_min": []
-        },
-        "raw_sa": {"apsp": [], "flow": []},
-        "random": {"apsp": [], "flow": []},
-    }
 
     tasks = [(n, trial, seed, cache_dir) for n in sizes for trial in range(num_graphs)]
     total_tasks = len(tasks)
@@ -550,47 +629,7 @@ def run(
                 _print_trial_progress(index, total_tasks, n, trial, result["timings"])
                 trial_results[n].append(result)
 
-    for n in sizes:
-        a_rsa, f_rsa = [], []
-        a_glb, f_glb, v_glb, s_glb, p_glb = [], [], [], [], []
-        a_cls, f_cls, v_cls, s_cls, pt_cls, pmax_cls, pmean_cls, pmin_cls = [], [], [], [], [], [], [], []
-        a_rnd, f_rnd = [], []
-        partitions = []
-
-        print(f"\n>>> Aggregating size n={n}")
-
-        for result in trial_results[n]:
-            res_rsa = result["raw_sa"]
-            res_glb = result["global"]
-            res_cls = result["mr2s"]
-            res_rnd = _normalize_random_baseline(result["random"])
-            # Accumulate
-            a_rsa.append(res_rsa["apsp"]); f_rsa.append(res_rsa["flow"])
-            a_glb.append(res_glb["apsp"]); f_glb.append(res_glb["flow"]); v_glb.append(res_glb["qvars"]); s_glb.append(res_glb["sg"]); p_glb.append(res_glb["pt"])
-            a_cls.append(res_cls["apsp"]); f_cls.append(res_cls["flow"]); v_cls.append(res_cls["qvars"]); s_cls.append(res_cls["sg"])
-            pt_cls.append(res_cls["phys_total"]); pmax_cls.append(res_cls["phys_max"]); pmean_cls.append(res_cls["phys_mean"]); pmin_cls.append(res_cls["phys_min"])
-            partitions.append(res_cls.get("partition", {}))
-            a_rnd.append(res_rnd["apsp"]); f_rnd.append(res_rnd["flow"])
-
-        # Store averages
-        results["raw_sa"]["apsp"].append(_mean_finite(a_rsa))
-        results["raw_sa"]["flow"].append(_mean_finite(f_rsa))
-        results["global"]["apsp"].append(_mean_finite(a_glb))
-        results["global"]["flow"].append(_mean_finite(f_glb))
-        results["global"]["qubo_vars"].append(_mean_finite(v_glb))
-        results["global"]["subgraph_size"].append(_mean_finite(s_glb))
-        results["global"]["phys_total"].append(_mean_finite(p_glb))
-        results["mr2s"]["apsp"].append(_mean_finite(a_cls))
-        results["mr2s"]["flow"].append(_mean_finite(f_cls))
-        results["mr2s"]["qubo_vars"].append(_mean_finite(v_cls))
-        results["mr2s"]["subgraph_size"].append(_mean_finite(s_cls))
-        results["mr2s"]["phys_total"].append(_mean_finite(pt_cls))
-        results["mr2s"]["phys_max"].append(_mean_finite(pmax_cls))
-        results["mr2s"]["phys_mean"].append(_mean_finite(pmean_cls))
-        results["mr2s"]["phys_min"].append(_mean_finite(pmin_cls))
-        results["mr2s"]["partition"].append(partitions)
-        results["random"]["apsp"].append(_mean_finite(a_rnd))
-        results["random"]["flow"].append(_mean_finite(f_rnd))
+    results = aggregate_trial_results(sizes, trial_results)
 
     with open(os.path.join(output_dir, "poster_results.json"), "w") as f:
         json.dump(results, f, indent=2)
