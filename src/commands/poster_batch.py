@@ -13,9 +13,12 @@ from typing import Any, Iterable
 import numpy as np
 
 from src.commands import poster_results
+from src.commands.poster_results_runner import PosterResultsAggregator
+from src.commands.poster_results_solvers import _run_poster_algorithm
 from src.cache import generate_cache_key
 
 POSTER_BATCH_SCHEMA_VERSION = 1
+POSTER_RESULTS_PROBLEM = "poster-results"
 POSTER_BATCH_ALGORITHMS = ("raw_sa", "global", "mr2s", "random")
 DEFAULT_QUEUE = "poster-results"
 DEFAULT_VISIBILITY_TIMEOUT = 5
@@ -35,6 +38,7 @@ def _stable_task_id(n: int, trial: int, seed: int | None, algorithm: str) -> str
     task_key = generate_cache_key(
         "poster-batch-task",
         version=POSTER_BATCH_SCHEMA_VERSION,
+        problem=POSTER_RESULTS_PROBLEM,
         n=n,
         trial=trial,
         seed=seed,
@@ -61,11 +65,13 @@ def build_task(
     task_id = _stable_task_id(n, trial, seed, algorithm)
     prefix = _normalise_s3_prefix(s3_prefix)
     result_key = (
-        f"{prefix}/chunks/algorithm={algorithm}/n={n}/"
+        f"{prefix}/chunks/problem={POSTER_RESULTS_PROBLEM}/algorithm={algorithm}/n={n}/"
         f"trial={trial}/seed={seed if seed is not None else 'none'}/{task_id}.json"
     )
     return {
         "schema_version": POSTER_BATCH_SCHEMA_VERSION,
+        "problem": POSTER_RESULTS_PROBLEM,
+        "task_type": POSTER_RESULTS_PROBLEM,
         "task_id": task_id,
         "n": n,
         "trial": trial,
@@ -158,21 +164,40 @@ def _write_result_to_s3(s3_client: Any, bucket: str, task: dict[str, Any], resul
     )
 
 
-def run_task(task: dict[str, Any]) -> dict[str, Any]:
-    result, timings = poster_results._run_poster_algorithm(
+def _to_plain_dict(value: Any) -> dict[str, Any]:
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    return dict(value)
+
+
+def _run_poster_results_task(task: dict[str, Any]) -> dict[str, Any]:
+    result, timings = _run_poster_algorithm(
         int(task["n"]),
         int(task["trial"]),
         task.get("seed"),
         task["algorithm"],
     )
     return {
+        "problem": POSTER_RESULTS_PROBLEM,
         "algorithm": task["algorithm"],
         "n": task["n"],
         "trial": task["trial"],
         "seed": task.get("seed"),
-        "values": result,
-        "timings": timings,
+        "values": _to_plain_dict(result),
+        "timings": _to_plain_dict(timings),
     }
+
+
+TASK_ROUTERS = {
+    POSTER_RESULTS_PROBLEM: _run_poster_results_task,
+}
+
+
+def run_task(task: dict[str, Any]) -> dict[str, Any]:
+    problem = task.get("problem") or task.get("task_type")
+    if problem not in TASK_ROUTERS:
+        raise ValueError(f"Unknown batch task problem: {problem}")
+    return TASK_ROUTERS[problem](task)
 
 
 def run_worker(
@@ -235,7 +260,10 @@ def run_worker(
 
 def _iter_s3_json_objects(s3_client: Any, bucket: str, prefix: str) -> Iterable[dict[str, Any]]:
     paginator = s3_client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=bucket, Prefix=f"{_normalise_s3_prefix(prefix)}/chunks/"):
+    for page in paginator.paginate(
+        Bucket=bucket,
+        Prefix=f"{_normalise_s3_prefix(prefix)}/chunks/problem={POSTER_RESULTS_PROBLEM}/",
+    ):
         for item in page.get("Contents", []):
             key = item["Key"]
             if not key.endswith(".json"):
@@ -258,6 +286,9 @@ def collect_s3_trial_results(
 
     for payload in _iter_s3_json_objects(s3_client, bucket, prefix):
         result = payload["result"]
+        problem = result.get("problem") or payload.get("task", {}).get("problem")
+        if problem != POSTER_RESULTS_PROBLEM:
+            continue
         n = int(result["n"])
         trial = int(result["trial"])
         algorithm = result["algorithm"]
@@ -316,7 +347,7 @@ def collect_and_plot(
         if not allow_missing:
             raise RuntimeError(f"Missing {len(missing)} poster batch chunk(s); see {missing_path}")
 
-    results = poster_results.aggregate_trial_results(sizes, trial_results)
+    results = PosterResultsAggregator().aggregate_full(sizes, trial_results)
     with open(os.path.join(output_dir, "poster_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=_json_default, allow_nan=True)
     poster_results._plot_results(results, output_dir)

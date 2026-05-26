@@ -113,7 +113,9 @@ def test_build_tasks_splits_each_trial_by_algorithm() -> None:
 
     assert len(tasks) == 8
     assert {task["algorithm"] for task in tasks} == {"raw_sa", "mr2s"}
-    assert all(task["s3_key"].startswith("poster/run/chunks/") for task in tasks)
+    assert all(task["problem"] == "poster-results" for task in tasks)
+    assert all(task["task_type"] == "poster-results" for task in tasks)
+    assert all(task["s3_key"].startswith("poster/run/chunks/problem=poster-results/") for task in tasks)
     assert len({task["task_id"] for task in tasks}) == len(tasks)
 
 
@@ -130,6 +132,17 @@ def test_worker_processes_task_and_writes_s3(monkeypatch) -> None:
     assert task["s3_key"] in s3.objects
     status = json.loads(redis.hashes["queue:status"][task["task_id"]])
     assert status["state"] == "succeeded"
+
+
+def test_run_task_routes_by_problem(monkeypatch) -> None:
+    task = pb.build_task(8, 0, 42, "raw_sa", "poster/run", max_attempts=1)
+
+    def fake_poster_task(task):
+        return {"problem": task["problem"], "algorithm": task["algorithm"]}
+
+    monkeypatch.setitem(pb.TASK_ROUTERS, "poster-results", fake_poster_task)
+
+    assert pb.run_task(task) == {"problem": "poster-results", "algorithm": "raw_sa"}
 
 
 def test_worker_requeues_failed_task_until_max_attempts(monkeypatch) -> None:

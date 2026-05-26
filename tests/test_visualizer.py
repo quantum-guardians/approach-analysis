@@ -6,7 +6,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pytest
 
-from src.visualizer import plot_score_correlations, plot_nhop_connectivity_comparison
+from src.visualizer import (
+    plot_nhop_connectivity_comparison,
+    plot_score_correlations,
+    plot_spent_time,
+)
 
 
 class TestPlotScoreCorrelations:
@@ -118,4 +122,37 @@ class TestPlotNhopConnectivityComparison:
             save_path=None,
         )
         assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+
+class TestPlotSpentTime:
+    def test_returns_figure(self):
+        fig = plot_spent_time(
+            sizes=[5, 10],
+            graph_time=[0.1, 0.2],
+            raw_sa_time=[1.0, 2.0],
+            global_solve_time=[1.5, 2.5],
+            global_embed_time=[0.3, 0.4],
+            clustered_solve_time=[1.2, 2.2],
+            clustered_embed_time=[0.0, 0.1],
+            random_time=[0.01, 0.02],
+            save_path=None,
+        )
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_saves_png(self, tmp_path):
+        out = tmp_path / "spent_time.png"
+        fig = plot_spent_time(
+            sizes=[5],
+            graph_time=[0.1],
+            raw_sa_time=[1.0],
+            global_solve_time=[1.5],
+            global_embed_time=[0.3],
+            clustered_solve_time=[1.2],
+            clustered_embed_time=[0.0],
+            random_time=[0.01],
+            save_path=str(out),
+        )
+        assert out.exists()
         plt.close(fig)

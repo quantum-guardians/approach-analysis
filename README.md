@@ -9,8 +9,12 @@ Analysing the n-hop approach on random directed graphs.
 | `src/graph_generator.py` | 정점 수와 연결성 확률로 무방향 랜덤 그래프 생성 |
 | `src/case_generator.py` | 전수 열거(`generate_strongly_connected_orientations`) 및 무작위 샘플링(`sample_strongly_connected_orientations`) 기반으로 강연결(strongly-connected) 방향 그래프 산출 |
 | `src/score_calculator.py` | NumPy 기반 APSP 합계 및 n-hop 이웃 수(n=2,3,4) 계산 |
-| `src/visualizer.py` | APSP 점수 간 상관관계 산점도, n-hop 수 / 연결성 비교 그래프, face-k 분석 시각화 |
+| `src/visualizer.py` | APSP 점수 간 상관관계 산점도, n-hop 수 / 연결성 비교 그래프, face-k 및 poster 결과 시각화 |
 | `src/commands/face_k_analysis.py` | `mr2s-module`의 `FaceCycle`을 활용한 최적 face-cycle target k 분석 |
+| `src/commands/poster_results.py` | MR2S poster용 solver 비교 실험 실행 |
+| `src/commands/poster_results_solvers.py` | Raw SA, Global QUBO, DnC MR2S, random baseline trial 실행 |
+| `src/commands/poster_results_partition_strategy.py` | DnC partition strategy별 실행 및 진단 |
+| `src/commands/poster_results_runner.py` | poster-results 집계, cache 재사용, 병렬 실행 |
 
 ## 설치 (Installation)
 
@@ -20,7 +24,7 @@ pip install -r requirements.txt
 
 ## 사용법 (Usage)
 
-`main.py`는 여러 서브 커맨드를 제공합니다.
+`main.py`는 `analyse`, `nhop-connectivity`, `face-k-analysis`, `poster-results`, `poster-batch` 서브 커맨드를 제공합니다.
 
 ### `analyse` – 단일 그래프의 APSP·n-hop 상관관계 분석
 
@@ -130,18 +134,76 @@ python main.py face-k-analysis \
 
 ---
 
+### `poster-results` – MR2S poster solver 비교
+
+Raw SA, Global QUBO, MR2S 변형 solver, DnC MR2S, random baseline을 같은 Delaunay 그래프에서 비교합니다.
+DnC MR2S는 `mr2s-module==0.0.8`의 `graph_partition_strategy` hook을 사용하며,
+현재 결과에는 다음 MR2S 변형과 DnC partition strategy가 같은 solver 비교 그래프 안에 함께 표시됩니다.
+
+| MR2S variant | 설명 |
+|---|---|
+| `robbin_mr2s` | `Robbin` edge orienter로 초기 방향을 만든 뒤 MR2S QUBO solver 실행 |
+| `iterated_local_search_mr2s` | `IteratedLocalSearch` edge orienter로 초기 방향을 만든 뒤 MR2S QUBO solver 실행 |
+
+| DnC strategy | 설명 |
+|---|---|
+| `poster` | poster 실험용 embedding 진단과 target_k 이진 탐색 strategy |
+| `embedding_aware` | `mr2s-module`의 `EmbeddingAwareFaceCyclePartitionStrategy` |
+| `degeneracy_pruning` | `mr2s-module`의 `DegeneracyPruningFaceCyclePartitionStrategy` |
+
+```bash
+# 현재 poster 결과 재현: size 5, 10, 20 / size당 5개 graph
+python main.py poster-results \
+    --sizes 5 10 20 \
+    --output-dir results/poster \
+    --no-cache
+
+# cache를 사용해 누락된 size만 계산하고 기존 poster_results.json과 병합
+python main.py poster-results --sizes 5 10 20 --output-dir results/poster
+
+# 기존 결과의 MR2S/DnC 결과만 다시 계산해 병합
+python main.py poster-results \
+    --sizes 5 10 20 \
+    --output-dir results/poster \
+    --mr2s-only
+```
+
+#### `poster-results` CLI 옵션
+
+| 옵션 | 기본값 | 설명 |
+|---|---|---|
+| `--sizes` | 100 200 300 400 500 | 실험할 그래프 정점 수 목록 |
+| `--num-graphs` | 5 | size별 독립 그래프 생성 수 |
+| `--seed` | 42 | 재현성을 위한 기본 랜덤 시드 |
+| `--output-dir` | `results/poster` | 결과 JSON·플롯·cache 저장 디렉토리 |
+| `--num-workers` | CPU 기반 자동값 | trial 병렬 실행 process 수. 0이면 순차 실행 |
+| `--cache-dir` | `<output-dir>/poster_trial_cache` | trial cache 디렉토리 |
+| `--no-cache` | False | trial cache 읽기/쓰기를 끄고 재계산 |
+| `--mr2s-only` | False | 기존 결과를 유지하고 MR2S/DnC 결과만 다시 계산 |
+| `--source-results` | `<output-dir>/poster_results.json` | `--mr2s-only` 병합 기준 결과 파일 |
+
+poster 결과의 기본 저장 경로는 `results/poster/poster_results.json`이며, 위 재현 명령은 size 축 `[5, 10, 20]`을 사용합니다.
+`spent_time.png`는 embed/probe 시간을 제외한 solve time만 solver 라인으로 표시합니다.
+embed timing은 plot에는 넣지 않지만 JSON의 `timings` 섹션에는 보존합니다.
+
+결과 파일:
+- `poster_results.json` – solver별 평균 점수, MR2S 변형, DnC strategy별 결과, timing, partition 진단
+- `apsp_reduction.png` – Random / Raw SA / Global / MR2S 변형 / DnC strategy별 normalized APSP 비교
+- `flow_stability.png` – Random / Raw SA / Global / MR2S 변형 / DnC strategy별 flow imbalance 비교
+- `scalability.png` – Global QUBO와 DnC strategy별 QUBO 변수·subgraph·physical qubit 비교
+- `spent_time.png` – graph generation, Raw SA, Global solve, MR2S 변형, DnC strategy별 solve time, random baseline 비교
+
+---
+
 ### `poster-batch` – AWS Batch 기반 poster result 분산 처리
 
 `poster-batch`는 poster result 계산을 그래프 trial과 알고리즘 단위로 나누어 Redis queue에 넣고,
 AWS Batch worker가 task를 처리해 S3에 JSON chunk로 저장합니다. 마지막으로 S3 chunk를 모아
 기존 poster visualization 파일(`poster_results.json`, `apsp_reduction.png`, `flow_stability.png`,
-`scalability.png`)을 생성합니다.
+`scalability.png`, `spent_time.png`)을 생성합니다.
 
-필요 패키지:
-
-```bash
-pip install -r requirements.txt
-```
+각 Redis task에는 `problem: "poster-results"` tag가 포함됩니다. Worker는 이 값을 보고 poster result
+handler로 라우팅하므로, 이후 다른 문제 유형을 같은 queue/worker 구조에 추가할 수 있습니다.
 
 필수/선택 환경 변수:
 
@@ -217,7 +279,7 @@ python main.py poster-batch collect \
 S3 chunk key 구조:
 
 ```text
-{prefix}/chunks/algorithm={algorithm}/n={n}/trial={trial}/seed={seed}/{task_id}.json
+{prefix}/chunks/problem=poster-results/algorithm={algorithm}/n={n}/trial={trial}/seed={seed}/{task_id}.json
 ```
 
 각 task는 `raw_sa`, `global`, `mr2s`, `random` 중 하나의 알고리즘만 계산합니다.
@@ -235,7 +297,7 @@ python -m pytest tests/ -v
 
 ```
 n-hop-approach-analysis/
-├── main.py               # 실행 진입점 (analyse / nhop-connectivity / face-k-analysis 서브 커맨드)
+├── main.py               # 실행 진입점 (analyse / nhop-connectivity / face-k-analysis / poster-results)
 ├── requirements.txt
 ├── src/
 │   ├── graph_generator.py
@@ -245,17 +307,30 @@ n-hop-approach-analysis/
 │   └── commands/
 │       ├── analyse.py
 │       ├── nhop_connectivity.py
-│       └── face_k_analysis.py
+│       ├── face_k_analysis.py
+│       ├── poster_results.py
+│       ├── poster_results_models.py
+│       ├── poster_results_plotting.py
+│       ├── poster_results_runner.py
+│       ├── poster_results_solvers.py
+│       └── poster_results_partition_strategy.py
 ├── results/
-│   └── face_k_analysis/
+│   ├── face_k_analysis/
 │       ├── face_k_results.json
 │       ├── face_k_analysis.png
 │       └── report.md
+│   └── poster/
+│       ├── poster_results.json
+│       ├── apsp_reduction.png
+│       ├── flow_stability.png
+│       ├── scalability.png
+│       └── spent_time.png
 └── tests/
     ├── test_graph_generator.py
     ├── test_case_generator.py
     ├── test_score_calculator.py
     ├── test_visualizer.py
     ├── test_nhop_connectivity_cmd.py
-    └── test_face_k_analysis_cmd.py
+    ├── test_face_k_analysis_cmd.py
+    └── test_poster_results_cmd.py
 ```
