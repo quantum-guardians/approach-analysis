@@ -9,9 +9,12 @@ Analysing the n-hop approach on random directed graphs.
 | `src/graph_generator.py` | 정점 수와 연결성 확률로 무방향 랜덤 그래프 생성 |
 | `src/case_generator.py` | 전수 열거(`generate_strongly_connected_orientations`) 및 무작위 샘플링(`sample_strongly_connected_orientations`) 기반으로 강연결(strongly-connected) 방향 그래프 산출 |
 | `src/score_calculator.py` | NumPy 기반 APSP 합계 및 n-hop 이웃 수(n=2,3,4) 계산 |
-| `src/visualizer.py` | APSP 점수 간 상관관계 산점도, n-hop 수 / 연결성 비교 그래프, face-k 분석 시각화 |
+| `src/visualizer.py` | APSP 점수 간 상관관계 산점도, n-hop 수 / 연결성 비교 그래프, face-k 및 poster 결과 시각화 |
 | `src/commands/face_k_analysis.py` | `mr2s-module`의 `FaceCycle`을 활용한 최적 face-cycle target k 분석 |
-| `src/commands/poster_results.py` | MR2S poster용 Raw SA / Global QUBO / DnC MR2S / Random baseline 비교 데이터와 플롯 생성 |
+| `src/commands/poster_results.py` | MR2S poster용 solver 비교 실험 실행 |
+| `src/commands/poster_results_solvers.py` | Raw SA, Global QUBO, DnC MR2S, random baseline trial 실행 |
+| `src/commands/poster_results_partition_strategy.py` | DnC partition strategy별 실행 및 진단 |
+| `src/commands/poster_results_runner.py` | poster-results 집계, cache 재사용, 병렬 실행 |
 
 ## 설치 (Installation)
 
@@ -21,7 +24,7 @@ pip install -r requirements.txt
 
 ## 사용법 (Usage)
 
-`main.py`는 네 개의 서브 커맨드를 제공합니다.
+`main.py`는 `analyse`, `nhop-connectivity`, `face-k-analysis`, `poster-results` 서브 커맨드를 제공합니다.
 
 ### `analyse` – 단일 그래프의 APSP·n-hop 상관관계 분석
 
@@ -123,7 +126,6 @@ python main.py face-k-analysis \
 | `--seed` | None | 재현성을 위한 기본 랜덤 시드 |
 | `--output-dir` | `results/face_k_analysis` | 결과 JSON·플롯·보고서 저장 디렉토리 |
 | `--output` | `<output-dir>/face_k_analysis.png` | 플롯 파일 경로 재정의 |
-| `--num-workers` | min(조합 수, CPU 코어 수) | 조합별 trial 실행용 병렬 워커 수 |
 
 결과 파일:
 - `face_k_results.json` – 전체 수치 결과
@@ -132,61 +134,64 @@ python main.py face-k-analysis \
 
 ---
 
-### `poster-results` – MR2S poster 비교 데이터 생성
+### `poster-results` – MR2S poster solver 비교
 
-Raw SA(`SAMR2SSolver`), Global QUBO(`QuboMR2SSolver`), DnC MR2S(`DnCMr2sSolver`),
-Random baseline을 같은 Delaunay 그래프 trial에서 비교합니다. 결과는 JSON으로 저장되고,
-APSP reduction, flow stability, preprocessing scalability 플롯을 함께 생성합니다.
+Raw SA, Global QUBO, MR2S 변형 solver, DnC MR2S, random baseline을 같은 Delaunay 그래프에서 비교합니다.
+DnC MR2S는 `mr2s-module==0.0.8`의 `graph_partition_strategy` hook을 사용하며,
+현재 결과에는 다음 MR2S 변형과 DnC partition strategy가 같은 solver 비교 그래프 안에 함께 표시됩니다.
 
-Random baseline은 임의 방향 조합을 샘플링합니다. Flow 점수는 강연결 여부와 관계없이 모든 샘플에서 계산하고,
-APSP는 강연결 샘플에서만 계산합니다. 강연결 샘플이 없으면 random APSP는 NaN으로 남깁니다.
+| MR2S variant | 설명 |
+|---|---|
+| `robbin_mr2s` | `Robbin` edge orienter로 초기 방향을 만든 뒤 MR2S QUBO solver 실행 |
+| `iterated_local_search_mr2s` | `IteratedLocalSearch` edge orienter로 초기 방향을 만든 뒤 MR2S QUBO solver 실행 |
+
+| DnC strategy | 설명 |
+|---|---|
+| `poster` | poster 실험용 embedding 진단과 target_k 이진 탐색 strategy |
+| `embedding_aware` | `mr2s-module`의 `EmbeddingAwareFaceCyclePartitionStrategy` |
+| `degeneracy_pruning` | `mr2s-module`의 `DegeneracyPruningFaceCyclePartitionStrategy` |
 
 ```bash
-# 기본 실행 (정점 100/200/300/400/500, 크기별 5개 그래프)
-python main.py poster-results
-
-# 파라미터 지정
+# 현재 poster 결과 재현: size 5, 10, 20 / size당 5개 graph
 python main.py poster-results \
-    --sizes 100 200 300 \
-    --num-graphs 3 \
-    --seed 42 \
-    --output-dir results/poster
-
-# DnC MR2S 결과만 다시 계산해서 기존 poster_results.json에 병합
-python main.py poster-results \
-    --mr2s-only \
+    --sizes 5 10 20 \
     --output-dir results/poster \
-    --num-graphs 5 \
-    --seed 42
+    --no-cache
 
-# Random baseline만 다시 계산해서 기존 poster_results.json에 병합
+# cache를 사용해 누락된 size만 계산하고 기존 poster_results.json과 병합
+python main.py poster-results --sizes 5 10 20 --output-dir results/poster
+
+# 기존 결과의 MR2S/DnC 결과만 다시 계산해 병합
 python main.py poster-results \
-    --random-only \
+    --sizes 5 10 20 \
     --output-dir results/poster \
-    --num-graphs 5 \
-    --seed 42
+    --mr2s-only
 ```
 
 #### `poster-results` CLI 옵션
 
 | 옵션 | 기본값 | 설명 |
 |---|---|---|
-| `--sizes` | 100 200 300 400 500 | 탐색할 그래프 정점 수 목록. `--random-only`에서 생략하면 기존 `poster_results.json`의 `sizes` 사용 |
-| `--num-graphs` | 5 | 크기별 독립 그래프 trial 수 |
-| `--seed` | 42 | 재현성을 위한 기본 랜덤 시드. trial seed는 `seed + trial * 100 + n` |
-| `--output-dir` | `results/poster` | 결과 JSON·플롯 저장 디렉토리 |
-| `--cache-dir` | `<output-dir>/poster_trial_cache` | trial cache 디렉토리. 모드별 기본값은 full run / MR2S-only / random-only마다 다름 |
-| `--no-cache` | False | trial cache 읽기·쓰기 비활성화 |
-| `--num-workers` | min(trial 수, CPU 코어 수 - 1) | trial 실행용 병렬 worker process 수. `0`이면 순차 실행 |
-| `--mr2s-only` | False | DnC MR2S 결과만 재계산해 기존 `poster_results.json`에 병합 |
-| `--random-only` | False | Random baseline만 재계산해 기존 `poster_results.json`에 병합 |
-| `--source-results` | `<output-dir>/poster_results.json` | `--mr2s-only` 또는 `--random-only` 병합에 사용할 기존 결과 JSON |
+| `--sizes` | 100 200 300 400 500 | 실험할 그래프 정점 수 목록 |
+| `--num-graphs` | 5 | size별 독립 그래프 생성 수 |
+| `--seed` | 42 | 재현성을 위한 기본 랜덤 시드 |
+| `--output-dir` | `results/poster` | 결과 JSON·플롯·cache 저장 디렉토리 |
+| `--num-workers` | CPU 기반 자동값 | trial 병렬 실행 process 수. 0이면 순차 실행 |
+| `--cache-dir` | `<output-dir>/poster_trial_cache` | trial cache 디렉토리 |
+| `--no-cache` | False | trial cache 읽기/쓰기를 끄고 재계산 |
+| `--mr2s-only` | False | 기존 결과를 유지하고 MR2S/DnC 결과만 다시 계산 |
+| `--source-results` | `<output-dir>/poster_results.json` | `--mr2s-only` 병합 기준 결과 파일 |
+
+poster 결과의 기본 저장 경로는 `results/poster/poster_results.json`이며, 위 재현 명령은 size 축 `[5, 10, 20]`을 사용합니다.
+`spent_time.png`는 embed/probe 시간을 제외한 solve time만 solver 라인으로 표시합니다.
+embed timing은 plot에는 넣지 않지만 JSON의 `timings` 섹션에는 보존합니다.
 
 결과 파일:
-- `poster_results.json` – size별 solver 비교 수치
-- `apsp_reduction.png` – Random / Raw SA / Global / DnC MR2S 정규화 APSP 비교
-- `flow_stability.png` – solver별 flow imbalance 비교
-- `scalability.png` – QUBO 변수 수, subgraph 크기, physical qubit 추정치 비교
+- `poster_results.json` – solver별 평균 점수, MR2S 변형, DnC strategy별 결과, timing, partition 진단
+- `apsp_reduction.png` – Random / Raw SA / Global / MR2S 변형 / DnC strategy별 normalized APSP 비교
+- `flow_stability.png` – Random / Raw SA / Global / MR2S 변형 / DnC strategy별 flow imbalance 비교
+- `scalability.png` – Global QUBO와 DnC strategy별 QUBO 변수·subgraph·physical qubit 비교
+- `spent_time.png` – graph generation, Raw SA, Global solve, MR2S 변형, DnC strategy별 solve time, random baseline 비교
 
 ## 테스트 (Tests)
 
@@ -209,12 +214,23 @@ n-hop-approach-analysis/
 │       ├── analyse.py
 │       ├── nhop_connectivity.py
 │       ├── face_k_analysis.py
-│       └── poster_results.py
+│       ├── poster_results.py
+│       ├── poster_results_models.py
+│       ├── poster_results_plotting.py
+│       ├── poster_results_runner.py
+│       ├── poster_results_solvers.py
+│       └── poster_results_partition_strategy.py
 ├── results/
-│   └── face_k_analysis/
+│   ├── face_k_analysis/
 │       ├── face_k_results.json
 │       ├── face_k_analysis.png
 │       └── report.md
+│   └── poster/
+│       ├── poster_results.json
+│       ├── apsp_reduction.png
+│       ├── flow_stability.png
+│       ├── scalability.png
+│       └── spent_time.png
 └── tests/
     ├── test_graph_generator.py
     ├── test_case_generator.py

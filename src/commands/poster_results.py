@@ -1,102 +1,52 @@
-"""``poster-results`` subcommand – MR2S poster visualization data generation.
-
-Four categories:
-1. Raw SA (SAMR2SSolver)
-2. Global (QuboMR2SSolver)
-3. Clustered (DnCMr2sSolver)
-4. Random baseline
-"""
+"""``poster-results`` subcommand - MR2S poster visualization data generation."""
 
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
-import json
-import multiprocessing
-import os
-import time
 from typing import Any
 
-import numpy as np
 import networkx as nx
-import mr2s_module.domain.graph
 
-# Patch missing is_empty method in mr2s_module.domain.graph.Graph class directly
-if not hasattr(mr2s_module.domain.graph.Graph, 'is_empty'):
-    def is_empty(self):
-        return len(self.edges) == 0
-    mr2s_module.domain.graph.Graph.is_empty = is_empty
-
-from mr2s_module import SAMR2SSolver, Evaluator, estimate_required_qubits, \
-  QuboMR2SSolver, SAQuboSolver, ApspSumRanker, NHopPolyGenerator, \
-  FlowPolyGenerator, SmallWorldSpec, NHop
-from mr2s_module.solver.dnc_mr2s_solver import DnCMr2sSolver
-
-from src.commands.face_k_analysis import _generate_delaunay_graph, _nx_to_mr2s_graph
-from src.cache import SimpleCache, generate_cache_key
+from src.cache import generate_cache_key
+from src.commands.poster_results_cache import cached_trial_result
+from src.commands.poster_results_models import (
+    Mr2sTrialResult,
+    PosterTrialResult,
+)
+from src.commands.poster_results_plotting import _plot_results
+from src.commands.poster_results_runner import (
+    Mr2sOnlyPosterResultsRunner,
+    PosterResultsAggregator,
+    PosterResultsRunner,
+    PosterRunConfig,
+    TrialScheduler,
+)
+from src.commands import poster_results_solvers as _solver_helpers
+from src.commands.poster_results_solvers import (
+    _mean_finite,
+    _normalize_random_baseline,
+    _run_mr2s_trial,
+    _run_trial,
+)
 from src.score_calculator import calculate_apsp_sum_and_nhop_neighbor_counts
-from src.visualizer import plot_apsp_reduction, plot_flow_stability, plot_preprocessing_scalability
 
-spec = SmallWorldSpec([NHop(2, 1), NHop(3, 1)])
-POSTER_CACHE_VERSION = 3
-
+POSTER_CACHE_VERSION = 5
 TrialTask = tuple[int, int, int | None, str | None]
 
-def _as_finite_or_nan(value: Any) -> float:
-    value = float(value)
-    return value if np.isfinite(value) else float("nan")
 
-def _mean_finite(values: list[float]) -> float:
-    finite_values = [_as_finite_or_nan(value) for value in values]
-    finite_values = [value for value in finite_values if np.isfinite(value)]
-    if not finite_values:
-        return float("nan")
-    return float(np.mean(finite_values))
-
-def _normalize_random_baseline(result: dict[str, Any]) -> dict[str, Any]:
-    """Treat missing random samples as unavailable, not as a zero score."""
-    sample_count = result.get("sample_count")
-    missing_legacy_sample = sample_count is None and result.get("apsp") == 0 and result.get("flow") == 0
-    if sample_count == 0 or missing_legacy_sample:
-        normalized = dict(result)
-        normalized["apsp"] = float("nan")
-        normalized["flow"] = float("nan")
-        normalized["sample_count"] = 0
-        return normalized
-    return result
-
+# 테스트와 기존 내부 호출자가 이 모듈의 private helper를 직접 monkeypatch하므로
+# solver 모듈로 위임하는 얇은 호환 래퍼를 유지한다.
 def _sample_random_orientations(
     graph: nx.Graph,
     max_samples: int,
     seed: int | None = None,
 ) -> list[nx.DiGraph]:
-    """Sample arbitrary edge orientations without filtering by connectivity."""
-    if max_samples < 1:
-        raise ValueError(f"max_samples must be >= 1, got {max_samples}")
+    return _solver_helpers._sample_random_orientations(graph, max_samples, seed)
 
-    edges = list(graph.edges())
-    nodes = list(graph.nodes())
-    rng = np.random.default_rng(seed)
-    orientations: list[nx.DiGraph] = []
-
-    for _ in range(max_samples):
-        dg = nx.DiGraph()
-        dg.add_nodes_from(nodes)
-        bits = rng.integers(0, 2, size=len(edges))
-        for bit, (u, v) in zip(bits, edges):
-            if bit == 0:
-                dg.add_edge(u, v)
-            else:
-                dg.add_edge(v, u)
-        orientations.append(dg)
-
-    return orientations
 
 def _flow_imbalance_score(graph: nx.DiGraph) -> int:
-    return sum(
-        (graph.in_degree(node) - graph.out_degree(node)) ** 2
-        for node in graph.nodes()
-    )
+    return _solver_helpers._flow_imbalance_score(graph)
+
 
 def _calculate_random_baseline(
     graph: nx.Graph,
@@ -109,6 +59,8 @@ def _calculate_random_baseline(
     trial_flow = []
 
     for orient in random_samples:
+        # APSP는 강연결 방향 그래프에서만 의미 있게 비교하고,
+        # flow imbalance는 강연결 여부와 무관하게 모든 샘플의 기준값으로 남긴다.
         if nx.is_strongly_connected(orient):
             apsp, _ = calculate_apsp_sum_and_nhop_neighbor_counts(orient, hops=[])
             trial_apsp.append(apsp / (n * (n - 1)))
@@ -121,97 +73,17 @@ def _calculate_random_baseline(
         "strong_sample_count": len(trial_apsp),
     }
 
-def _build_sa_solver(seed: int | None = None) -> SAMR2SSolver:
-    return SAMR2SSolver(
-        evaluator=Evaluator(),
-        random_seed=seed
-    )
 
-def _build_qubo_solver() -> QuboMR2SSolver:
-    n_hop_poly = NHopPolyGenerator()
-    n_hop_poly.small_world_spec = spec
-    return QuboMR2SSolver(
-        qubo_solver=SAQuboSolver(ApspSumRanker()),
-        evaluator=Evaluator(),
-        poly_generators=[n_hop_poly, FlowPolyGenerator()],
-    )
+def _probe_embedding(mr2s_solver: Any, graph: Any) -> dict[str, Any]:
+    return _solver_helpers._probe_embedding(mr2s_solver, graph)
 
-def _build_dnc_qubo_solver() -> DnCMr2sSolver:
-    return DnCMr2sSolver(
-      mr2s_solver=_build_qubo_solver()
-    )
-
-def _estimate_physical_qubits_with_status(bqm: Any) -> tuple[float, bool, str | None]:
-    try:
-        return float(estimate_required_qubits(bqm).num_physical_qubits), True, None
-    except RuntimeError as exc:
-        return float("nan"), False, str(exc)
-
-def _estimate_physical_qubits(bqm: Any) -> float:
-    """Return physical qubits for embeddable BQMs; NaN when embedding fails."""
-    physical_qubits, _, _ = _estimate_physical_qubits_with_status(bqm)
-    return physical_qubits
-
-def _probe_embedding(mr2s_solver: QuboMR2SSolver, graph: Any) -> dict[str, Any]:
-    bqm = mr2s_solver.build_bqm(graph)
-    physical_qubits, can_embed, error = _estimate_physical_qubits_with_status(bqm)
-    return {
-        "can_embed": can_embed,
-        "qvars": len(bqm.variables),
-        "physical_qubits": physical_qubits,
-        "error": error,
-    }
-
-def _can_recurse_partition(parent: Any, sub_graphs: list[Any]) -> bool:
-    if not sub_graphs:
-        return False
-
-    parent_edge_count = len(parent.edges)
-    return all(
-        0 < len(sub_graph.edges) < parent_edge_count
-        for sub_graph in sub_graphs
-    )
 
 def _partition_with_target_k(face_cycle: Any, graph: Any, target_k: int) -> Any:
-    previous_target_k = face_cycle.target_k
-    face_cycle.target_k = target_k
-    try:
-        return face_cycle.run(graph)
-    finally:
-        face_cycle.target_k = previous_target_k
+    return _solver_helpers._partition_with_target_k(face_cycle, graph, target_k)
 
-def _summarize_partition_attempt(
-    target_k: int,
-    result: Any,
-    can_recurse: bool,
-    probes: list[dict[str, Any]],
-    accepted: bool,
-) -> dict[str, Any]:
-    sub_graphs = result.sub_graphs
-    finite_physical = [
-        probe["physical_qubits"]
-        for probe in probes
-        if np.isfinite(probe["physical_qubits"])
-    ]
-    qvars = [probe["qvars"] for probe in probes]
-    return {
-        "target_k": target_k,
-        "subgraph_count": len(sub_graphs),
-        "remaining_edge_count": len(result.remaining_edges),
-        "edge_counts": [len(sub_graph.edges) for sub_graph in sub_graphs],
-        "can_recurse": can_recurse,
-        "all_embed": bool(probes) and all(probe["can_embed"] for probe in probes),
-        "accepted": accepted,
-        "embed_failures": sum(not probe["can_embed"] for probe in probes),
-        "qvars": qvars,
-        "max_qvars": max(qvars) if qvars else 0,
-        "total_qvars": sum(qvars),
-        "physical_qubits": [probe["physical_qubits"] for probe in probes],
-        "physical_total": float(sum(finite_physical)) if finite_physical else float("nan"),
-    }
 
 def _find_partition_by_target_k_with_diagnostics(
-    mr2s_solver: QuboMR2SSolver,
+    mr2s_solver: Any,
     face_cycle: Any,
     graph: Any,
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -222,10 +94,12 @@ def _find_partition_by_target_k_with_diagnostics(
     attempts: list[dict[str, Any]] = []
 
     while left <= right:
+        # target_k가 작을수록 큰 subgraph가 생길 수 있으므로,
+        # embedding 가능한 가장 작은 target_k를 이진 탐색한다.
         target_k = (left + right) // 2
         result = _partition_with_target_k(face_cycle, graph, target_k)
         sub_graphs = result.sub_graphs
-        can_recurse = _can_recurse_partition(graph, sub_graphs)
+        can_recurse = _solver_helpers._can_recurse_partition(graph, sub_graphs)
         probes = (
             [_probe_embedding(mr2s_solver, sub_graph) for sub_graph in sub_graphs]
             if can_recurse
@@ -233,7 +107,7 @@ def _find_partition_by_target_k_with_diagnostics(
         )
         accepted = can_recurse and all(probe["can_embed"] for probe in probes)
         attempts.append(
-            _summarize_partition_attempt(
+            _solver_helpers._summarize_partition_attempt(
                 target_k=target_k,
                 result=result,
                 can_recurse=can_recurse,
@@ -256,7 +130,9 @@ def _find_partition_by_target_k_with_diagnostics(
     }
     return best_sub_graphs or [], diagnostics
 
-def _divide_graph_with_diagnostics(solver: DnCMr2sSolver, graph: Any) -> tuple[list[Any], dict[str, Any]]:
+
+def _divide_graph_with_diagnostics(solver: Any, graph: Any) -> tuple[list[Any], dict[str, Any]]:
+    # 전체 그래프가 바로 embedding 가능하면 분할하지 않는다.
     whole_graph_probe = _probe_embedding(solver.mr2s_solver, graph)
     diagnostics = {
         "whole_graph": whole_graph_probe,
@@ -274,137 +150,12 @@ def _divide_graph_with_diagnostics(solver: DnCMr2sSolver, graph: Any) -> tuple[l
     )
     diagnostics.update(partition_diagnostics)
     if not sub_graphs:
+        # 분할도 실패하면 기존 solver 동작을 유지하기 위해 전체 그래프로 fallback한다.
         diagnostics["selected_reason"] = "fallback_whole_graph"
         diagnostics["selected_probes"] = [whole_graph_probe]
         return [graph], diagnostics
     return sub_graphs, diagnostics
 
-def _physical_qubit_stats(values: list[float]) -> dict[str, float]:
-    finite_values = [value for value in values if not np.isnan(value)]
-    if not finite_values:
-        return {
-            "total": float("nan"),
-            "max": float("nan"),
-            "mean": float("nan"),
-            "min": float("nan"),
-        }
-    return {
-        "total": float(sum(finite_values)),
-        "max": float(max(finite_values)),
-        "mean": float(np.mean(finite_values)),
-        "min": float(min(finite_values)),
-    }
-
-def _run_clustered_solver(graph: Any, n: int) -> tuple[dict[str, Any], dict[str, float]]:
-    timings: dict[str, float] = {}
-
-    start = time.monotonic()
-    solver_cls = _build_dnc_qubo_solver()
-    graph_cls = _nx_to_mr2s_graph(graph)
-    sub_graphs_cls, partition_diagnostics = _divide_graph_with_diagnostics(
-        solver_cls,
-        graph_cls,
-    )
-    if len(sub_graphs_cls) == 1 and sub_graphs_cls[0] is graph_cls:
-        sol_cls = solver_cls.mr2s_solver.run(graph_cls)
-    else:
-        sub_solutions = solver_cls._solve_subgraphs(sub_graphs_cls)
-        merged_solution = solver_cls.merge_solutions(
-            solutions=sub_solutions,
-            graph=graph_cls,
-        )
-        solver_cls._apply_merged_directions(graph_cls, merged_solution)
-        sol_cls = solver_cls.mr2s_solver.run(graph_cls)
-        sol_cls.score = solver_cls.score_merged_solution(sol_cls, sub_solutions)
-    timings["clustered_solve"] = time.monotonic() - start
-
-    start = time.monotonic()
-    selected_probes = partition_diagnostics.get("selected_probes", [])
-    cluster_phys = [
-        probe["physical_qubits"]
-        for probe in selected_probes
-        if probe["qvars"] > 0
-    ]
-    cluster_qvars = [
-        probe["qvars"]
-        for probe in selected_probes
-        if probe["qvars"] > 0
-    ]
-
-    if not cluster_qvars:
-        cluster_qvars = [0]
-    if not cluster_phys:
-        cluster_phys = [0]
-
-    timings["clustered_embed"] = time.monotonic() - start
-    phys_cls = _physical_qubit_stats(cluster_phys)
-
-    return {
-        "apsp": sol_cls.score.apsp_sum / (n * (n - 1)),
-        "flow": sol_cls.score.flow_score,
-        "qvars": sum(cluster_qvars),
-        "sg": max(cluster_qvars),
-        "phys_total": phys_cls["total"],
-        "phys_max": phys_cls["max"],
-        "phys_mean": phys_cls["mean"],
-        "phys_min": phys_cls["min"],
-        "partition": partition_diagnostics,
-    }, timings
-
-def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
-    """Run all poster-result solvers for one graph trial."""
-    n, trial, seed = task
-    trial_seed = (seed + trial * 100 + n) if seed is not None else None
-    graph = _generate_delaunay_graph(n, trial_seed)
-    timings: dict[str, float] = {}
-
-    # 1. Raw SA
-    start = time.monotonic()
-    solver_rsa = _build_sa_solver(seed=trial_seed)
-    solver_rsa.face_cycle = None
-    sol_rsa = solver_rsa.run(_nx_to_mr2s_graph(graph))
-    timings["raw_sa"] = time.monotonic() - start
-    res_rsa = {
-        "apsp": sol_rsa.score.apsp_sum / (n * (n - 1)),
-        "flow": sol_rsa.score.flow_score,
-    }
-
-    # 2. Global
-    start = time.monotonic()
-    solver_glb = _build_qubo_solver()
-    solver_glb.face_cycle = None
-    sol_glb = solver_glb.run(_nx_to_mr2s_graph(graph))
-    timings["global_solve"] = time.monotonic() - start
-
-    start = time.monotonic()
-    bqm_glb = solver_glb.build_bqm(_nx_to_mr2s_graph(graph))
-    phys_glb = _estimate_physical_qubits(bqm_glb)
-    timings["global_embed"] = time.monotonic() - start
-
-    res_glb = {
-        "apsp": sol_glb.score.apsp_sum / (n * (n - 1)),
-        "flow": sol_glb.score.flow_score,
-        "qvars": len(bqm_glb.variables),
-        "sg": len(bqm_glb.variables),
-        "pt": phys_glb,
-    }
-
-    # 3. Clustered
-    res_cls, clustered_timings = _run_clustered_solver(graph, n)
-    timings.update(clustered_timings)
-
-    # 4. Random
-    start = time.monotonic()
-    res_rnd = _calculate_random_baseline(graph, n, trial_seed)
-    timings["random"] = time.monotonic() - start
-
-    return n, trial, {
-        "raw_sa": res_rsa,
-        "global": res_glb,
-        "mr2s": res_cls,
-        "random": res_rnd,
-        "timings": timings,
-    }
 
 def _poster_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
     """Return the stable cache key for one poster-result graph trial."""
@@ -416,6 +167,7 @@ def _poster_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
         seed=seed,
     )
 
+
 def _poster_mr2s_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
     """Return the stable cache key for one MR2S-only poster trial."""
     return generate_cache_key(
@@ -426,118 +178,54 @@ def _poster_mr2s_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
         seed=seed,
     )
 
-def _poster_random_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
-    """Return the stable cache key for one random-only poster trial."""
-    return generate_cache_key(
-        "poster-results-random-trial",
-        version=POSTER_CACHE_VERSION,
-        n=n,
-        trial=trial,
-        seed=seed,
-    )
 
-def _run_trial_with_cache(
-    task: tuple[int, int, int | None, str | None]
-) -> tuple[int, int, dict[str, Any]]:
-    """Run one poster trial, reusing the on-disk cache when configured."""
-    n, trial, seed, cache_dir = task
-    if cache_dir is None:
-        n, trial, result = _run_trial((n, trial, seed))
-        result["cache_hit"] = False
-        result.setdefault("timings", {})["cache_hit"] = False
-        return n, trial, result
+def _coerce_full_trial_result(result: PosterTrialResult | dict[str, Any]) -> PosterTrialResult:
+    if isinstance(result, PosterTrialResult):
+        return result
+    return PosterTrialResult.from_dict(result)
 
-    cache = SimpleCache(cache_dir)
-    cache_key = _poster_trial_cache_key(n, trial, seed)
-    cached_result = cache.get(cache_key)
-    if isinstance(cached_result, dict):
-        cached_result["cache_hit"] = True
-        cached_result.setdefault("timings", {})["cache_hit"] = True
-        return n, trial, cached_result
 
-    n, trial, result = _run_trial((n, trial, seed))
-    result["cache_hit"] = False
-    result.setdefault("timings", {})["cache_hit"] = False
-    cache.set(cache_key, result)
-    return n, trial, result
+def _coerce_mr2s_trial_result(result: Mr2sTrialResult | dict[str, Any]) -> Mr2sTrialResult:
+    if isinstance(result, Mr2sTrialResult):
+        return result
+    return Mr2sTrialResult.from_dict(result)
 
-def _run_mr2s_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
-    n, trial, seed = task
-    trial_seed = (seed + trial * 100 + n) if seed is not None else None
-    graph = _generate_delaunay_graph(n, trial_seed)
-    res_cls, timings = _run_clustered_solver(graph, n)
-    return n, trial, {
-        "mr2s": res_cls,
-        "timings": timings,
-    }
 
-def _run_mr2s_trial_with_cache(
-    task: tuple[int, int, int | None, str | None]
-) -> tuple[int, int, dict[str, Any]]:
-    n, trial, seed, cache_dir = task
-    if cache_dir is None:
-        n, trial, result = _run_mr2s_trial((n, trial, seed))
-        result["cache_hit"] = False
-        result.setdefault("timings", {})["cache_hit"] = False
-        return n, trial, result
+def _run_trial_worker(
+    task: tuple[int, int, int | None],
+) -> tuple[int, int, PosterTrialResult | dict[str, Any]]:
+    # decorator 안쪽에서 실제 cache hit/miss 처리를 공통화하되,
+    # multiprocessing pickle이 찾을 수 있는 별도 top-level worker 이름을 유지한다.
+    return _run_trial(task)
 
-    cache = SimpleCache(cache_dir)
-    cache_key = _poster_mr2s_trial_cache_key(n, trial, seed)
-    cached_result = cache.get(cache_key)
-    if isinstance(cached_result, dict):
-        cached_result["cache_hit"] = True
-        cached_result.setdefault("timings", {})["cache_hit"] = True
-        return n, trial, cached_result
 
-    n, trial, result = _run_mr2s_trial((n, trial, seed))
-    result["cache_hit"] = False
-    result.setdefault("timings", {})["cache_hit"] = False
-    cache.set(cache_key, result)
-    return n, trial, result
+_run_trial_with_cache = cached_trial_result(
+    cache_key=_poster_trial_cache_key,
+    from_dict=PosterTrialResult.from_dict,
+    coerce_result=_coerce_full_trial_result,
+)(_run_trial_worker)
 
-def _run_random_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
-    n, trial, seed = task
-    trial_seed = (seed + trial * 100 + n) if seed is not None else None
-    graph = _generate_delaunay_graph(n, trial_seed)
 
-    start = time.monotonic()
-    res_rnd = _calculate_random_baseline(graph, n, trial_seed)
-    timings = {"random": time.monotonic() - start}
+def _run_mr2s_trial_worker(
+    task: tuple[int, int, int | None],
+) -> tuple[int, int, Mr2sTrialResult | dict[str, Any]]:
+    # MR2S-only도 동일한 cache decorator를 공유한다.
+    return _run_mr2s_trial(task)
 
-    return n, trial, {
-        "random": res_rnd,
-        "timings": timings,
-    }
 
-def _run_random_trial_with_cache(
-    task: tuple[int, int, int | None, str | None]
-) -> tuple[int, int, dict[str, Any]]:
-    n, trial, seed, cache_dir = task
-    if cache_dir is None:
-        n, trial, result = _run_random_trial((n, trial, seed))
-        result["cache_hit"] = False
-        result.setdefault("timings", {})["cache_hit"] = False
-        return n, trial, result
+_run_mr2s_trial_with_cache = cached_trial_result(
+    cache_key=_poster_mr2s_trial_cache_key,
+    from_dict=Mr2sTrialResult.from_dict,
+    coerce_result=_coerce_mr2s_trial_result,
+)(
+    _run_mr2s_trial_worker
+)
 
-    cache = SimpleCache(cache_dir)
-    cache_key = _poster_random_trial_cache_key(n, trial, seed)
-    cached_result = cache.get(cache_key)
-    if isinstance(cached_result, dict):
-        cached_result["cache_hit"] = True
-        cached_result.setdefault("timings", {})["cache_hit"] = True
-        return n, trial, cached_result
 
-    n, trial, result = _run_random_trial((n, trial, seed))
-    result["cache_hit"] = False
-    result.setdefault("timings", {})["cache_hit"] = False
-    cache.set(cache_key, result)
-    return n, trial, result
-
-def _process_pool_context() -> multiprocessing.context.BaseContext:
+def _process_pool_context() -> Any:
     """Prefer fork where available; fall back to the platform default."""
-    if "fork" in multiprocessing.get_all_start_methods():
-        return multiprocessing.get_context("fork")
-    return multiprocessing.get_context()
+    return TrialScheduler()._process_pool_context()
+
 
 def _iter_completed_trials(
     worker: Any,
@@ -545,65 +233,12 @@ def _iter_completed_trials(
     num_workers: int,
 ) -> Any:
     """Yield trial results from non-daemonic worker processes as they finish."""
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=num_workers,
-        mp_context=_process_pool_context(),
-    ) as executor:
-        futures = [executor.submit(worker, task) for task in tasks]
-        for future in concurrent.futures.as_completed(futures):
-            yield future.result()
+    yield from TrialScheduler().iter_completed(worker, tasks, num_workers)
+
 
 def _aggregate_mr2s_results(results: dict[str, Any], trial_results: dict[int, list[dict[str, Any]]]) -> None:
-    results["mr2s"] = {
-        "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
-        "phys_total": [], "phys_max": [], "phys_mean": [], "phys_min": [],
-        "partition": [],
-    }
+    PosterResultsAggregator().merge_mr2s_only(results, trial_results)
 
-    for n in results["sizes"]:
-        a_cls, f_cls, v_cls, s_cls = [], [], [], []
-        pt_cls, pmax_cls, pmean_cls, pmin_cls = [], [], [], []
-        partitions = []
-
-        print(f"\n>>> Aggregating MR2S-only size n={n}")
-
-        for result in trial_results[n]:
-            res_cls = result["mr2s"]
-            a_cls.append(res_cls["apsp"])
-            f_cls.append(res_cls["flow"])
-            v_cls.append(res_cls["qvars"])
-            s_cls.append(res_cls["sg"])
-            pt_cls.append(res_cls["phys_total"])
-            pmax_cls.append(res_cls["phys_max"])
-            pmean_cls.append(res_cls["phys_mean"])
-            pmin_cls.append(res_cls["phys_min"])
-            partitions.append(res_cls.get("partition", {}))
-
-        results["mr2s"]["apsp"].append(_mean_finite(a_cls))
-        results["mr2s"]["flow"].append(_mean_finite(f_cls))
-        results["mr2s"]["qubo_vars"].append(_mean_finite(v_cls))
-        results["mr2s"]["subgraph_size"].append(_mean_finite(s_cls))
-        results["mr2s"]["phys_total"].append(_mean_finite(pt_cls))
-        results["mr2s"]["phys_max"].append(_mean_finite(pmax_cls))
-        results["mr2s"]["phys_mean"].append(_mean_finite(pmean_cls))
-        results["mr2s"]["phys_min"].append(_mean_finite(pmin_cls))
-        results["mr2s"]["partition"].append(partitions)
-
-def _aggregate_random_results(results: dict[str, Any], trial_results: dict[int, list[dict[str, Any]]]) -> None:
-    results["random"] = {"apsp": [], "flow": []}
-
-    for n in results["sizes"]:
-        a_rnd, f_rnd = [], []
-
-        print(f"\n>>> Aggregating random-only size n={n}")
-
-        for result in trial_results[n]:
-            res_rnd = _normalize_random_baseline(result["random"])
-            a_rnd.append(res_rnd["apsp"])
-            f_rnd.append(res_rnd["flow"])
-
-        results["random"]["apsp"].append(_mean_finite(a_rnd))
-        results["random"]["flow"].append(_mean_finite(f_rnd))
 
 def run(
     sizes: list[int],
@@ -614,170 +249,22 @@ def run(
     cache_dir: str | None = None,
     use_cache: bool = True,
 ) -> None:
-    os.makedirs(output_dir, exist_ok=True)
-    if cache_dir is None and use_cache:
-        cache_dir = os.path.join(output_dir, "poster_trial_cache")
-    elif not use_cache:
-        cache_dir = None
-
-    results = {
-        "sizes": sizes,
-        "mr2s": {
-            "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
-            "phys_total": [], "phys_max": [], "phys_mean": [], "phys_min": [],
-            "partition": [],
-        },
-        "global": {
-            "apsp": [], "flow": [], "qubo_vars": [], "subgraph_size": [],
-            "phys_total": [], "phys_max": [], "phys_mean": [], "phys_min": []
-        },
-        "raw_sa": {"apsp": [], "flow": []},
-        "random": {"apsp": [], "flow": []},
-    }
-
-    tasks = [(n, trial, seed, cache_dir) for n in sizes for trial in range(num_graphs)]
-    total_tasks = len(tasks)
-    effective_workers = (
-        num_workers
-        if num_workers is not None
-        else min(total_tasks, max((os.cpu_count() or 2) - 1, 1))
+    config = PosterRunConfig(
+        sizes=sizes,
+        num_graphs=num_graphs,
+        seed=seed,
+        output_dir=output_dir,
+        num_workers=num_workers,
+        cache_dir=cache_dir,
+        use_cache=use_cache,
     )
+    PosterResultsRunner(
+        config=config,
+        worker=_run_trial_with_cache,
+        progress_printer=_print_trial_progress,
+        plotter=_plot_results,
+    ).run()
 
-    print(
-        f"Starting poster results: {len(sizes)} size(s), "
-        f"{num_graphs} graph(s) each, {effective_workers} worker process(es)."
-    )
-    if cache_dir is not None:
-        print(f"Using poster trial cache: {cache_dir}")
-
-    trial_results: dict[int, list[dict[str, Any]]] = {n: [] for n in sizes}
-
-    if effective_workers == 0:
-        for index, task in enumerate(tasks, start=1):
-            n, trial, result = _run_trial_with_cache(task)
-            _print_trial_progress(index, total_tasks, n, trial, result["timings"])
-            trial_results[n].append(result)
-    else:
-        for index, (n, trial, result) in enumerate(
-            _iter_completed_trials(_run_trial_with_cache, tasks, effective_workers),
-            start=1,
-        ):
-            _print_trial_progress(index, total_tasks, n, trial, result["timings"])
-            trial_results[n].append(result)
-
-    for n in sizes:
-        a_rsa, f_rsa = [], []
-        a_glb, f_glb, v_glb, s_glb, p_glb = [], [], [], [], []
-        a_cls, f_cls, v_cls, s_cls, pt_cls, pmax_cls, pmean_cls, pmin_cls = [], [], [], [], [], [], [], []
-        a_rnd, f_rnd = [], []
-        partitions = []
-
-        print(f"\n>>> Aggregating size n={n}")
-
-        for result in trial_results[n]:
-            res_rsa = result["raw_sa"]
-            res_glb = result["global"]
-            res_cls = result["mr2s"]
-            res_rnd = _normalize_random_baseline(result["random"])
-            # Accumulate
-            a_rsa.append(res_rsa["apsp"]); f_rsa.append(res_rsa["flow"])
-            a_glb.append(res_glb["apsp"]); f_glb.append(res_glb["flow"]); v_glb.append(res_glb["qvars"]); s_glb.append(res_glb["sg"]); p_glb.append(res_glb["pt"])
-            a_cls.append(res_cls["apsp"]); f_cls.append(res_cls["flow"]); v_cls.append(res_cls["qvars"]); s_cls.append(res_cls["sg"])
-            pt_cls.append(res_cls["phys_total"]); pmax_cls.append(res_cls["phys_max"]); pmean_cls.append(res_cls["phys_mean"]); pmin_cls.append(res_cls["phys_min"])
-            partitions.append(res_cls.get("partition", {}))
-            a_rnd.append(res_rnd["apsp"]); f_rnd.append(res_rnd["flow"])
-
-        # Store averages
-        results["raw_sa"]["apsp"].append(_mean_finite(a_rsa))
-        results["raw_sa"]["flow"].append(_mean_finite(f_rsa))
-        results["global"]["apsp"].append(_mean_finite(a_glb))
-        results["global"]["flow"].append(_mean_finite(f_glb))
-        results["global"]["qubo_vars"].append(_mean_finite(v_glb))
-        results["global"]["subgraph_size"].append(_mean_finite(s_glb))
-        results["global"]["phys_total"].append(_mean_finite(p_glb))
-        results["mr2s"]["apsp"].append(_mean_finite(a_cls))
-        results["mr2s"]["flow"].append(_mean_finite(f_cls))
-        results["mr2s"]["qubo_vars"].append(_mean_finite(v_cls))
-        results["mr2s"]["subgraph_size"].append(_mean_finite(s_cls))
-        results["mr2s"]["phys_total"].append(_mean_finite(pt_cls))
-        results["mr2s"]["phys_max"].append(_mean_finite(pmax_cls))
-        results["mr2s"]["phys_mean"].append(_mean_finite(pmean_cls))
-        results["mr2s"]["phys_min"].append(_mean_finite(pmin_cls))
-        results["mr2s"]["partition"].append(partitions)
-        results["random"]["apsp"].append(_mean_finite(a_rnd))
-        results["random"]["flow"].append(_mean_finite(f_rnd))
-
-    with open(os.path.join(output_dir, "poster_results.json"), "w") as f:
-        json.dump(results, f, indent=2)
-
-    _plot_results(results, output_dir)
-
-def run_random_only(
-    sizes: list[int] | None,
-    num_graphs: int,
-    seed: int | None,
-    output_dir: str,
-    num_workers: int | None = None,
-    cache_dir: str | None = None,
-    use_cache: bool = True,
-    source_results_path: str | None = None,
-) -> None:
-    os.makedirs(output_dir, exist_ok=True)
-    if source_results_path is None:
-        source_results_path = os.path.join(output_dir, "poster_results.json")
-    if not os.path.exists(source_results_path):
-        raise FileNotFoundError(
-            f"Random-only mode needs existing results to merge: {source_results_path}"
-        )
-
-    with open(source_results_path) as f:
-        results = json.load(f)
-    if sizes is None:
-        sizes = results["sizes"]
-    results["sizes"] = sizes
-
-    if cache_dir is None and use_cache:
-        cache_dir = os.path.join(output_dir, "poster_random_trial_cache")
-    elif not use_cache:
-        cache_dir = None
-
-    tasks = [(n, trial, seed, cache_dir) for n in sizes for trial in range(num_graphs)]
-    total_tasks = len(tasks)
-    effective_workers = (
-        num_workers
-        if num_workers is not None
-        else min(total_tasks, max((os.cpu_count() or 2) - 1, 1))
-    )
-
-    print(
-        f"Starting random-only poster results: {len(sizes)} size(s), "
-        f"{num_graphs} graph(s) each, {effective_workers} worker process(es)."
-    )
-    print(f"Merging into: {source_results_path}")
-    if cache_dir is not None:
-        print(f"Using random-only trial cache: {cache_dir}")
-
-    trial_results: dict[int, list[dict[str, Any]]] = {n: [] for n in sizes}
-
-    if effective_workers == 0:
-        for index, task in enumerate(tasks, start=1):
-            n, trial, result = _run_random_trial_with_cache(task)
-            _print_random_trial_progress(index, total_tasks, n, trial, result["timings"])
-            trial_results[n].append(result)
-    else:
-        for index, (n, trial, result) in enumerate(
-            _iter_completed_trials(_run_random_trial_with_cache, tasks, effective_workers),
-            start=1,
-        ):
-            _print_random_trial_progress(index, total_tasks, n, trial, result["timings"])
-            trial_results[n].append(result)
-
-    _aggregate_random_results(results, trial_results)
-
-    with open(os.path.join(output_dir, "poster_results.json"), "w") as f:
-        json.dump(results, f, indent=2)
-
-    _plot_results(results, output_dir)
 
 def run_mr2s_only(
     sizes: list[int],
@@ -789,60 +276,23 @@ def run_mr2s_only(
     use_cache: bool = True,
     source_results_path: str | None = None,
 ) -> None:
-    os.makedirs(output_dir, exist_ok=True)
-    if source_results_path is None:
-        source_results_path = os.path.join(output_dir, "poster_results.json")
-    if not os.path.exists(source_results_path):
-        raise FileNotFoundError(
-            f"MR2S-only mode needs existing results to merge: {source_results_path}"
-        )
-
-    with open(source_results_path) as f:
-        results = json.load(f)
-    results["sizes"] = sizes
-
-    if cache_dir is None and use_cache:
-        cache_dir = os.path.join(output_dir, "poster_mr2s_trial_cache")
-    elif not use_cache:
-        cache_dir = None
-
-    tasks = [(n, trial, seed, cache_dir) for n in sizes for trial in range(num_graphs)]
-    total_tasks = len(tasks)
-    effective_workers = (
-        num_workers
-        if num_workers is not None
-        else min(total_tasks, max((os.cpu_count() or 2) - 1, 1))
+    config = PosterRunConfig(
+        sizes=sizes,
+        num_graphs=num_graphs,
+        seed=seed,
+        output_dir=output_dir,
+        num_workers=num_workers,
+        cache_dir=cache_dir,
+        use_cache=use_cache,
     )
+    Mr2sOnlyPosterResultsRunner(
+        config=config,
+        worker=_run_mr2s_trial_with_cache,
+        progress_printer=_print_mr2s_trial_progress,
+        plotter=_plot_results,
+        source_results_path=source_results_path,
+    ).run()
 
-    print(
-        f"Starting MR2S-only poster results: {len(sizes)} size(s), "
-        f"{num_graphs} graph(s) each, {effective_workers} worker process(es)."
-    )
-    print(f"Merging into: {source_results_path}")
-    if cache_dir is not None:
-        print(f"Using MR2S-only trial cache: {cache_dir}")
-
-    trial_results: dict[int, list[dict[str, Any]]] = {n: [] for n in sizes}
-
-    if effective_workers == 0:
-        for index, task in enumerate(tasks, start=1):
-            n, trial, result = _run_mr2s_trial_with_cache(task)
-            _print_mr2s_trial_progress(index, total_tasks, n, trial, result["timings"])
-            trial_results[n].append(result)
-    else:
-        for index, (n, trial, result) in enumerate(
-            _iter_completed_trials(_run_mr2s_trial_with_cache, tasks, effective_workers),
-            start=1,
-        ):
-            _print_mr2s_trial_progress(index, total_tasks, n, trial, result["timings"])
-            trial_results[n].append(result)
-
-    _aggregate_mr2s_results(results, trial_results)
-
-    with open(os.path.join(output_dir, "poster_results.json"), "w") as f:
-        json.dump(results, f, indent=2)
-
-    _plot_results(results, output_dir)
 
 def _print_trial_progress(
     index: int,
@@ -857,11 +307,13 @@ def _print_trial_progress(
 
     print(
         f"[{index}/{total}] n={n}, trial={trial}: "
+        f"Graph {timings.get('graph', 0.0):.2f}s, "
         f"Raw SA {timings['raw_sa']:.2f}s, "
         f"Global {timings['global_solve']:.2f}s + {timings['global_embed']:.2f}s, "
         f"Clustered {timings['clustered_solve']:.2f}s + {timings['clustered_embed']:.2f}s, "
         f"Random {timings['random']:.2f}s"
     )
+
 
 def _print_mr2s_trial_progress(
     index: int,
@@ -876,44 +328,15 @@ def _print_mr2s_trial_progress(
 
     print(
         f"[{index}/{total}] n={n}, trial={trial}: "
+        f"Graph {timings.get('graph', 0.0):.2f}s, "
         f"Clustered {timings['clustered_solve']:.2f}s + "
         f"{timings['clustered_embed']:.2f}s"
     )
 
-def _print_random_trial_progress(
-    index: int,
-    total: int,
-    n: int,
-    trial: int,
-    timings: dict[str, float],
-) -> None:
-    if timings.get("cache_hit"):
-        print(f"[{index}/{total}] n={n}, trial={trial}: random-only cache hit")
-        return
-
-    print(
-        f"[{index}/{total}] n={n}, trial={trial}: "
-        f"Random {timings['random']:.2f}s"
-    )
-
-def _plot_results(results: dict, output_dir: str):
-    sizes = results["sizes"]
-    plot_apsp_reduction(sizes, results["random"]["apsp"], results["raw_sa"]["apsp"], results["global"]["apsp"], results["mr2s"]["apsp"], save_path=os.path.join(output_dir, "apsp_reduction.png"))
-    plot_flow_stability(sizes, results["random"]["flow"], results["raw_sa"]["flow"], results["global"]["flow"], results["mr2s"]["flow"], save_path=os.path.join(output_dir, "flow_stability.png"))
-    plot_preprocessing_scalability(sizes, results["global"]["qubo_vars"], results["mr2s"]["qubo_vars"], results["global"]["subgraph_size"], results["mr2s"]["subgraph_size"], global_physical=results["global"].get("phys_total"), clustered_physical_total=results["mr2s"].get("phys_total"), clustered_physical_max=results["mr2s"].get("phys_max"), clustered_physical_mean=results["mr2s"].get("phys_mean"), clustered_physical_min=results["mr2s"].get("phys_min"), save_path=os.path.join(output_dir, "scalability.png"))
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     p = subparsers.add_parser("poster-results", help="Generate visualization data for MR2S poster.")
-    p.add_argument(
-        "--sizes",
-        type=int,
-        nargs="+",
-        default=None,
-        help=(
-            "Graph sizes to evaluate; defaults to 100 200 300 400 500, "
-            "or existing poster_results.json sizes in random-only mode."
-        ),
-    )
+    p.add_argument("--sizes", type=int, nargs="+", default=[100, 200, 300, 400, 500])
     p.add_argument("--num-graphs", type=int, default=5)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output-dir", type=str, default="results/poster")
@@ -940,25 +363,17 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Recompute only DnCMr2sSolver results and merge into existing poster_results.json.",
     )
     p.add_argument(
-        "--random-only",
-        action="store_true",
-        help="Recompute only random baseline results and merge into existing poster_results.json.",
-    )
-    p.add_argument(
         "--source-results",
         type=str,
         default=None,
-        help="Existing poster_results.json to merge in MR2S-only or random-only mode.",
+        help="Existing poster_results.json to merge in MR2S-only mode.",
     )
     p.set_defaults(func=_dispatch)
 
-def _dispatch(args: argparse.Namespace) -> None:
-    default_sizes = [100, 200, 300, 400, 500]
-    if args.mr2s_only and args.random_only:
-        raise ValueError("--mr2s-only and --random-only cannot be used together.")
 
-    if args.random_only:
-        run_random_only(
+def _dispatch(args: argparse.Namespace) -> None:
+    if args.mr2s_only:
+        run_mr2s_only(
             args.sizes,
             args.num_graphs,
             args.seed,
@@ -970,21 +385,8 @@ def _dispatch(args: argparse.Namespace) -> None:
         )
         return
 
-    if args.mr2s_only:
-        run_mr2s_only(
-            args.sizes or default_sizes,
-            args.num_graphs,
-            args.seed,
-            args.output_dir,
-            args.num_workers,
-            args.cache_dir,
-            not args.no_cache,
-            args.source_results,
-        )
-        return
-
     run(
-        args.sizes or default_sizes,
+        args.sizes,
         args.num_graphs,
         args.seed,
         args.output_dir,

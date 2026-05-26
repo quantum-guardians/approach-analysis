@@ -37,9 +37,9 @@ import networkx as nx
 import numpy as np
 from scipy.spatial import Delaunay
 
-from mr2s_module import FaceCycle, Graph as MR2SGraph, Edge as MR2SEdge, NHop, \
-  QuboMR2SSolver, SAQuboSolver, ApspSumRanker, Evaluator, NHopPolyGenerator, \
-  FlowPolyGenerator, SmallWorldSpec
+from mr2s_module import FaceClusterPartition as FaceCycle, Graph as MR2SGraph, \
+  Edge as MR2SEdge, NHop, QuboMR2SSolver, SAQuboSolver, ApspSumRanker, \
+  Evaluator, NHopPolyGenerator, FlowPolyGenerator, SmallWorldSpec
 
 from src.visualizer import plot_face_k_analysis, plot_optimal_k_fit_evidence
 
