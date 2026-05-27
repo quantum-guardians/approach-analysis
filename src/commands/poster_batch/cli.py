@@ -5,17 +5,16 @@ from __future__ import annotations
 import argparse
 import os
 
-from src.commands import poster_results
-from src.commands.poster_batch_collect import (
+from src.commands.poster_batch.collect import (
     collect_and_plot,
     collect_s3_trial_results,
 )
-from src.commands.poster_batch_queue import (
+from src.commands.poster_batch.queue import (
     Queue,
     RedisTaskQueue,
     get_redis_client,
 )
-from src.commands.poster_batch_schema import (
+from src.commands.poster_batch.schema import (
     DEFAULT_QUEUE,
     DEFAULT_VISIBILITY_TIMEOUT,
     POSTER_BATCH_ALGORITHMS,
@@ -24,12 +23,12 @@ from src.commands.poster_batch_schema import (
     build_task,
     build_tasks,
 )
-from src.commands.poster_batch_store import (
+from src.commands.poster_batch.store import (
     S3Store,
     Store,
     get_s3_client,
 )
-from src.commands.poster_batch_tasks import (
+from src.commands.poster_batch.tasks import (
     TASK_ROUTERS,
     enqueue_tasks,
     run_task,

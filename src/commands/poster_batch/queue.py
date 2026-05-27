@@ -7,7 +7,7 @@ import time
 import traceback
 from typing import Any, Callable, Protocol
 
-from src.commands.poster_batch_schema import (
+from src.commands.poster_batch.schema import (
     DEFAULT_VISIBILITY_TIMEOUT,
     decode_task,
     task_payload,

@@ -205,6 +205,9 @@ AWS Batch worker가 task를 처리해 S3에 JSON chunk로 저장합니다. 마�
 Queue와 Store는 추상화되어 있습니다. Task maker는 `Queue.enqueue()`으로 task를 넣고,
 worker는 `Queue.subscribe()`로 polling하며 task handler를 호출합니다. 결과 저장은 `Store.put_json()`과
 `Store.iter_json()`을 통해 처리하므로, 현재 구현인 Redis/S3 외 다른 queue/store로 바꾸기 쉽습니다.
+Batch 구현은 `src/commands/poster_batch/` 패키지에 기능별로 나뉘어 있습니다:
+`schema.py`는 task schema, `queue.py`는 queue 구현, `store.py`는 저장소 구현, `tasks.py`는 task routing,
+`collect.py`는 결과 수집, `cli.py`는 CLI adapter만 담당합니다.
 
 각 Redis task에는 `problem: "poster-results"` tag가 포함됩니다. Worker는 이 값을 보고 poster result
 handler로 라우팅하므로, 이후 다른 문제 유형을 같은 queue/worker 구조에 추가할 수 있습니다.

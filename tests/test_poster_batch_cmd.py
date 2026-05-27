@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 
 from src.commands import poster_batch as pb
-from src.commands import poster_batch_tasks as task_runner
+from src.commands.poster_batch import collect as batch_collect
+from src.commands.poster_batch import tasks as task_runner
 
 
 class FakeRedis:
@@ -195,7 +196,7 @@ def test_worker_requeues_failed_task_until_max_attempts(monkeypatch) -> None:
 def test_collect_s3_results_aggregates_complete_chunks(tmp_path, monkeypatch) -> None:
     s3 = FakeS3()
     store = pb.S3Store(s3, "bucket")
-    monkeypatch.setattr(pb.poster_results, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(batch_collect.poster_results, "_plot_results", lambda results, output_dir: None)
     tasks = pb.build_tasks(
         sizes=[8],
         num_graphs=1,

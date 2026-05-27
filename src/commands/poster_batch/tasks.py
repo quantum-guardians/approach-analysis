@@ -5,13 +5,13 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from src.commands.poster_batch_queue import Queue
-from src.commands.poster_batch_schema import (
+from src.commands.poster_batch.queue import Queue
+from src.commands.poster_batch.schema import (
     DEFAULT_VISIBILITY_TIMEOUT,
     POSTER_BATCH_SCHEMA_VERSION,
     POSTER_RESULTS_PROBLEM,
 )
-from src.commands.poster_batch_store import Store
+from src.commands.poster_batch.store import Store
 from src.commands.poster_results_solvers import _run_poster_algorithm
 
 

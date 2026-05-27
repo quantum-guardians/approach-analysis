@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Protocol
 
-from src.commands.poster_batch_schema import json_default
+from src.commands.poster_batch.schema import json_default
 
 
 class Store(Protocol):

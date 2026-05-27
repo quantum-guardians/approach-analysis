@@ -7,13 +7,13 @@ import os
 from typing import Any, Iterable
 
 from src.commands import poster_results
-from src.commands.poster_batch_schema import (
+from src.commands.poster_batch.schema import (
     POSTER_BATCH_ALGORITHMS,
     POSTER_RESULTS_PROBLEM,
     json_default,
     normalise_s3_prefix,
 )
-from src.commands.poster_batch_store import Store
+from src.commands.poster_batch.store import Store
 from src.commands.poster_results_runner import PosterResultsAggregator
 
 
