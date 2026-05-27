@@ -122,11 +122,13 @@ def test_build_tasks_splits_each_trial_by_algorithm() -> None:
 def test_worker_processes_task_and_writes_s3(monkeypatch) -> None:
     redis = FakeRedis()
     s3 = FakeS3()
+    queue = pb.RedisTaskQueue(redis, "queue")
+    store = pb.S3Store(s3, "bucket")
     task = pb.build_task(8, 0, 42, "raw_sa", "poster/run", max_attempts=1)
-    pb.enqueue_tasks(redis, "queue", [task])
+    pb.enqueue_tasks(queue, [task])
     monkeypatch.setattr(pb, "run_task", _fake_result)
 
-    processed = pb.run_worker(redis, s3, "queue", "bucket", max_tasks=1, block_timeout=0)
+    processed = pb.run_worker(queue, store, max_tasks=1, block_timeout=0)
 
     assert processed == 1
     assert task["s3_key"] in s3.objects
@@ -145,11 +147,33 @@ def test_run_task_routes_by_problem(monkeypatch) -> None:
     assert pb.run_task(task) == {"problem": "poster-results", "algorithm": "raw_sa"}
 
 
+def test_queue_subscribe_polls_and_invokes_handler() -> None:
+    redis = FakeRedis()
+    queue = pb.RedisTaskQueue(redis, "queue")
+    task = pb.build_task(8, 0, 42, "raw_sa", "poster/run", max_attempts=1)
+    queue.enqueue([task])
+    seen = []
+
+    processed = queue.subscribe(
+        lambda task: seen.append(task["task_id"]) or {"handled": True},
+        max_tasks=1,
+        block_timeout=0,
+    )
+
+    assert processed == 1
+    assert seen == [task["task_id"]]
+    status = json.loads(redis.hashes["queue:status"][task["task_id"]])
+    assert status["state"] == "succeeded"
+    assert status["handled"] is True
+
+
 def test_worker_requeues_failed_task_until_max_attempts(monkeypatch) -> None:
     redis = FakeRedis()
     s3 = FakeS3()
+    queue = pb.RedisTaskQueue(redis, "queue")
+    store = pb.S3Store(s3, "bucket")
     task = pb.build_task(8, 0, 42, "raw_sa", "poster/run", max_attempts=2)
-    pb.enqueue_tasks(redis, "queue", [task])
+    pb.enqueue_tasks(queue, [task])
 
     calls = 0
 
@@ -162,13 +186,14 @@ def test_worker_requeues_failed_task_until_max_attempts(monkeypatch) -> None:
 
     monkeypatch.setattr(pb, "run_task", flaky_run_task)
 
-    assert pb.run_worker(redis, s3, "queue", "bucket", max_tasks=1, block_timeout=0) == 1
+    assert pb.run_worker(queue, store, max_tasks=1, block_timeout=0) == 1
     assert calls == 2
     assert task["s3_key"] in s3.objects
 
 
 def test_collect_s3_results_aggregates_complete_chunks(tmp_path, monkeypatch) -> None:
     s3 = FakeS3()
+    store = pb.S3Store(s3, "bucket")
     monkeypatch.setattr(pb.poster_results, "_plot_results", lambda results, output_dir: None)
     tasks = pb.build_tasks(
         sizes=[8],
@@ -179,11 +204,10 @@ def test_collect_s3_results_aggregates_complete_chunks(tmp_path, monkeypatch) ->
         max_attempts=1,
     )
     for task in tasks:
-        pb._write_result_to_s3(s3, "bucket", task, _fake_result(task))
+        pb._write_result(store, task, _fake_result(task))
 
     results = pb.collect_and_plot(
-        s3,
-        "bucket",
+        store,
         "poster/run",
         sizes=[8],
         num_graphs=1,
@@ -199,12 +223,12 @@ def test_collect_s3_results_aggregates_complete_chunks(tmp_path, monkeypatch) ->
 
 def test_collect_s3_results_reports_missing_chunks() -> None:
     s3 = FakeS3()
+    store = pb.S3Store(s3, "bucket")
     task = pb.build_task(8, 0, 42, "raw_sa", "poster/run", max_attempts=1)
-    pb._write_result_to_s3(s3, "bucket", task, _fake_result(task))
+    pb._write_result(store, task, _fake_result(task))
 
     _, missing = pb.collect_s3_trial_results(
-        s3,
-        "bucket",
+        store,
         "poster/run",
         sizes=[8],
         num_graphs=1,
@@ -217,8 +241,7 @@ def test_collect_s3_results_reports_missing_chunks() -> None:
 def test_collect_and_plot_raises_when_chunks_are_missing(tmp_path) -> None:
     with pytest.raises(RuntimeError, match="Missing 4 poster batch chunk"):
         pb.collect_and_plot(
-            FakeS3(),
-            "bucket",
+            pb.S3Store(FakeS3(), "bucket"),
             "poster/run",
             sizes=[8],
             num_graphs=1,

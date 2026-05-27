@@ -8,7 +8,7 @@ import json
 import os
 import time
 import traceback
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable, Protocol
 
 import numpy as np
 
@@ -22,6 +22,8 @@ POSTER_RESULTS_PROBLEM = "poster-results"
 POSTER_BATCH_ALGORITHMS = ("raw_sa", "global", "mr2s", "random")
 DEFAULT_QUEUE = "poster-results"
 DEFAULT_VISIBILITY_TIMEOUT = 5
+
+TaskHandler = Callable[[dict[str, Any]], dict[str, Any] | None]
 
 
 def _json_default(value: Any) -> Any:
@@ -114,6 +116,131 @@ def _redis_status_key(queue_name: str) -> str:
     return f"{queue_name}:status"
 
 
+class Queue(Protocol):
+    def enqueue(self, tasks: list[dict[str, Any]]) -> int:
+        """Add tasks to the queue."""
+
+    def subscribe(
+        self,
+        handler: TaskHandler,
+        max_tasks: int | None = None,
+        block_timeout: int = DEFAULT_VISIBILITY_TIMEOUT,
+    ) -> int:
+        """Poll tasks and call *handler* for each task."""
+
+
+class Store(Protocol):
+    def put_json(self, key: str, payload: dict[str, Any]) -> None:
+        """Store a JSON payload by key."""
+
+    def iter_json(self, prefix: str) -> Iterable[dict[str, Any]]:
+        """Yield JSON payloads under prefix."""
+
+
+class RedisTaskQueue:
+    def __init__(self, redis_client: Any, queue_name: str):
+        self.redis_client = redis_client
+        self.queue_name = queue_name
+        self.status_key = _redis_status_key(queue_name)
+
+    def enqueue(self, tasks: list[dict[str, Any]]) -> int:
+        if not tasks:
+            return 0
+
+        payloads = [_task_payload(task) for task in tasks]
+        self.redis_client.rpush(self.queue_name, *payloads)
+        for task in tasks:
+            self._set_status(task, {"state": "queued", "task": task})
+        return len(tasks)
+
+    def subscribe(
+        self,
+        handler: TaskHandler,
+        max_tasks: int | None = None,
+        block_timeout: int = DEFAULT_VISIBILITY_TIMEOUT,
+    ) -> int:
+        processed = 0
+
+        while max_tasks is None or processed < max_tasks:
+            popped = self.redis_client.blpop(self.queue_name, timeout=block_timeout)
+            if popped is None:
+                break
+
+            _, payload = popped
+            task = _decode_task(payload)
+            task["attempt"] = int(task.get("attempt", 0)) + 1
+            self._set_status(
+                task,
+                {"state": "running", "task": task, "started_at": time.time()},
+            )
+
+            try:
+                status = handler(task) or {}
+                self._set_status(
+                    task,
+                    {
+                        "state": "succeeded",
+                        "task": task,
+                        "completed_at": time.time(),
+                        **status,
+                    },
+                )
+                processed += 1
+            except Exception as exc:
+                self._set_status(
+                    task,
+                    {
+                        "state": "failed",
+                        "task": task,
+                        "error": str(exc),
+                        "traceback": traceback.format_exc(),
+                        "failed_at": time.time(),
+                    },
+                )
+                if task["attempt"] < int(task.get("max_attempts", 1)):
+                    self.redis_client.rpush(self.queue_name, _task_payload(task))
+                else:
+                    processed += 1
+
+        return processed
+
+    def _set_status(self, task: dict[str, Any], status: dict[str, Any]) -> None:
+        self.redis_client.hset(
+            self.status_key,
+            task["task_id"],
+            _task_payload(status),
+        )
+
+
+class S3Store:
+    def __init__(self, s3_client: Any, bucket: str):
+        self.s3_client = s3_client
+        self.bucket = bucket
+
+    def put_json(self, key: str, payload: dict[str, Any]) -> None:
+        self.s3_client.put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=json.dumps(
+                payload,
+                indent=2,
+                default=_json_default,
+                allow_nan=True,
+            ).encode("utf-8"),
+            ContentType="application/json",
+        )
+
+    def iter_json(self, prefix: str) -> Iterable[dict[str, Any]]:
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            for item in page.get("Contents", []):
+                key = item["Key"]
+                if not key.endswith(".json"):
+                    continue
+                obj = self.s3_client.get_object(Bucket=self.bucket, Key=key)
+                yield json.loads(obj["Body"].read().decode("utf-8"))
+
+
 def get_redis_client(redis_url: str | None = None) -> Any:
     try:
         import redis
@@ -133,35 +260,17 @@ def get_s3_client() -> Any:
     return boto3.client("s3")
 
 
-def enqueue_tasks(redis_client: Any, queue_name: str, tasks: list[dict[str, Any]]) -> int:
-    if not tasks:
-        return 0
-
-    payloads = [_task_payload(task) for task in tasks]
-    redis_client.rpush(queue_name, *payloads)
-    status_key = _redis_status_key(queue_name)
-    for task in tasks:
-        redis_client.hset(
-            status_key,
-            task["task_id"],
-            _task_payload({"state": "queued", "task": task}),
-        )
-    return len(tasks)
+def enqueue_tasks(queue: Queue, tasks: list[dict[str, Any]]) -> int:
+    return queue.enqueue(tasks)
 
 
-def _write_result_to_s3(s3_client: Any, bucket: str, task: dict[str, Any], result: dict[str, Any]) -> None:
-    body = {
+def _write_result(store: Store, task: dict[str, Any], result: dict[str, Any]) -> None:
+    store.put_json(task["s3_key"], {
         "schema_version": POSTER_BATCH_SCHEMA_VERSION,
         "task": task,
         "result": result,
         "completed_at": time.time(),
-    }
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=task["s3_key"],
-        Body=json.dumps(body, indent=2, default=_json_default, allow_nan=True).encode("utf-8"),
-        ContentType="application/json",
-    )
+    })
 
 
 def _to_plain_dict(value: Any) -> dict[str, Any]:
@@ -201,80 +310,27 @@ def run_task(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_worker(
-    redis_client: Any,
-    s3_client: Any,
-    queue_name: str,
-    bucket: str,
+    queue: Queue,
+    store: Store,
     max_tasks: int | None = None,
     block_timeout: int = DEFAULT_VISIBILITY_TIMEOUT,
 ) -> int:
-    processed = 0
-    status_key = _redis_status_key(queue_name)
+    def handle_task(task: dict[str, Any]) -> dict[str, Any]:
+        result = run_task(task)
+        _write_result(store, task, result)
+        return {"s3_key": task["s3_key"]}
 
-    while max_tasks is None or processed < max_tasks:
-        popped = redis_client.blpop(queue_name, timeout=block_timeout)
-        if popped is None:
-            break
-
-        _, payload = popped
-        task = _decode_task(payload)
-        task["attempt"] = int(task.get("attempt", 0)) + 1
-        redis_client.hset(
-            status_key,
-            task["task_id"],
-            _task_payload({"state": "running", "task": task, "started_at": time.time()}),
-        )
-
-        try:
-            result = run_task(task)
-            _write_result_to_s3(s3_client, bucket, task, result)
-            redis_client.hset(
-                status_key,
-                task["task_id"],
-                _task_payload(
-                    {
-                        "state": "succeeded",
-                        "task": task,
-                        "s3_key": task["s3_key"],
-                        "completed_at": time.time(),
-                    }
-                ),
-            )
-            processed += 1
-        except Exception as exc:
-            error = {
-                "state": "failed",
-                "task": task,
-                "error": str(exc),
-                "traceback": traceback.format_exc(),
-                "failed_at": time.time(),
-            }
-            redis_client.hset(status_key, task["task_id"], _task_payload(error))
-            if task["attempt"] < int(task.get("max_attempts", 1)):
-                redis_client.rpush(queue_name, _task_payload(task))
-            else:
-                processed += 1
-
-    return processed
+    return queue.subscribe(handle_task, max_tasks=max_tasks, block_timeout=block_timeout)
 
 
-def _iter_s3_json_objects(s3_client: Any, bucket: str, prefix: str) -> Iterable[dict[str, Any]]:
-    paginator = s3_client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(
-        Bucket=bucket,
-        Prefix=f"{_normalise_s3_prefix(prefix)}/chunks/problem={POSTER_RESULTS_PROBLEM}/",
-    ):
-        for item in page.get("Contents", []):
-            key = item["Key"]
-            if not key.endswith(".json"):
-                continue
-            obj = s3_client.get_object(Bucket=bucket, Key=key)
-            yield json.loads(obj["Body"].read().decode("utf-8"))
+def _iter_store_json_objects(store: Store, prefix: str) -> Iterable[dict[str, Any]]:
+    yield from store.iter_json(
+        f"{_normalise_s3_prefix(prefix)}/chunks/problem={POSTER_RESULTS_PROBLEM}/"
+    )
 
 
 def collect_s3_trial_results(
-    s3_client: Any,
-    bucket: str,
+    store: Store,
     prefix: str,
     sizes: list[int],
     num_graphs: int,
@@ -284,7 +340,7 @@ def collect_s3_trial_results(
     by_trial: dict[tuple[int, int], dict[str, Any]] = {}
     seen: set[tuple[int, int, str]] = set()
 
-    for payload in _iter_s3_json_objects(s3_client, bucket, prefix):
+    for payload in _iter_store_json_objects(store, prefix):
         result = payload["result"]
         problem = result.get("problem") or payload.get("task", {}).get("problem")
         if problem != POSTER_RESULTS_PROBLEM:
@@ -323,8 +379,7 @@ def collect_s3_trial_results(
 
 
 def collect_and_plot(
-    s3_client: Any,
-    bucket: str,
+    store: Store,
     prefix: str,
     sizes: list[int],
     num_graphs: int,
@@ -333,8 +388,7 @@ def collect_and_plot(
 ) -> dict[str, Any]:
     os.makedirs(output_dir, exist_ok=True)
     trial_results, missing = collect_s3_trial_results(
-        s3_client,
-        bucket,
+        store,
         prefix,
         sizes,
         num_graphs,
@@ -356,6 +410,7 @@ def collect_and_plot(
 
 def _dispatch_enqueue(args: argparse.Namespace) -> None:
     redis_client = get_redis_client(args.redis_url)
+    queue = RedisTaskQueue(redis_client, args.queue)
     tasks = build_tasks(
         args.sizes,
         args.num_graphs,
@@ -364,7 +419,7 @@ def _dispatch_enqueue(args: argparse.Namespace) -> None:
         args.s3_prefix,
         args.max_attempts,
     )
-    count = enqueue_tasks(redis_client, args.queue, tasks)
+    count = enqueue_tasks(queue, tasks)
     print(f"Queued {count} poster batch task(s) into {args.queue}.")
 
 
@@ -372,11 +427,11 @@ def _dispatch_worker(args: argparse.Namespace) -> None:
     redis_client = get_redis_client(args.redis_url)
     s3_client = get_s3_client()
     bucket = args.s3_bucket or os.environ["POSTER_S3_BUCKET"]
+    queue = RedisTaskQueue(redis_client, args.queue)
+    store = S3Store(s3_client, bucket)
     processed = run_worker(
-        redis_client,
-        s3_client,
-        args.queue,
-        bucket,
+        queue,
+        store,
         args.max_tasks,
         args.block_timeout,
     )
@@ -386,9 +441,9 @@ def _dispatch_worker(args: argparse.Namespace) -> None:
 def _dispatch_collect(args: argparse.Namespace) -> None:
     s3_client = get_s3_client()
     bucket = args.s3_bucket or os.environ["POSTER_S3_BUCKET"]
+    store = S3Store(s3_client, bucket)
     collect_and_plot(
-        s3_client,
-        bucket,
+        store,
         args.s3_prefix,
         args.sizes,
         args.num_graphs,
