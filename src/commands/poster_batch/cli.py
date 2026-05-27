@@ -78,6 +78,7 @@ def _dispatch_collect(args: argparse.Namespace) -> None:
         args.num_graphs,
         args.output_dir,
         args.allow_missing,
+        args.algorithms,
     )
     print(f"Wrote poster batch visualization to {args.output_dir}.")
 
@@ -112,4 +113,5 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     collect.add_argument("--s3-prefix", type=str, default=os.environ.get("POSTER_S3_PREFIX", "poster-batch"))
     collect.add_argument("--output-dir", type=str, default="results/poster_batch")
     collect.add_argument("--allow-missing", action="store_true")
+    collect.add_argument("--algorithms", choices=POSTER_BATCH_ALGORITHMS, nargs="+", default=None)
     collect.set_defaults(func=_dispatch_collect)

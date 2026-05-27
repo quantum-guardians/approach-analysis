@@ -99,7 +99,7 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
 
 def test_run_can_disable_poster_trial_cache(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
-    monkeypatch.setattr(pr, "_run_trial", _fake_trial)
+    monkeypatch.setattr(pr._solver_helpers, "_run_trial", _fake_trial)
 
     pr.run(
         sizes=[8],

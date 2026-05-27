@@ -289,7 +289,8 @@ S3 chunk key 구조:
 {prefix}/chunks/problem=poster-results/algorithm={algorithm}/n={n}/trial={trial}/seed={seed}/{task_id}.json
 ```
 
-각 task는 `raw_sa`, `global`, `mr2s`, `random` 중 하나의 알고리즘만 계산합니다.
+각 task는 `raw_sa`, `global`, `mr2s`, `random`, `robbin_mr2s`, `iterated_local_search_mr2s`, `poster`, `embedding_aware`, `degeneracy_pruning` 중 하나의 알고리즘을 계산합니다.
+Enqueue 시 `--algorithms`로 계산할 알고리즘 subset을 지정할 수 있으며, collect 시에도 동일한 `--algorithms`를 지정해야 합니다.
 Worker 실패 시 task의 `max_attempts`까지 Redis queue에 다시 들어가며, 상태는
 `{queue}:status` Redis hash에 기록됩니다. `collect` 단계에서 누락된 chunk가 있으면
 `missing_tasks.json`을 쓰고 기본적으로 실패합니다. 부분 결과로 plot을 만들려면 `--allow-missing`을 사용합니다.

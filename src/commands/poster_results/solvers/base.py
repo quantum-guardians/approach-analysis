@@ -82,19 +82,21 @@ def _build_qubo_solver(edge_orienter: Any | None = None) -> QuboMR2SSolver:
 def _extract_directed_edges_from_solution(sol: Any) -> list[tuple[int, int]] | None:
     for attr in ("directed_graph", "dir_graph", "graph", "_graph"):
         candidate = getattr(sol, attr, None)
-        if candidate is not None and hasattr(candidate, "edges"):
-            edges = candidate.edges
-            if not edges:
-                return None
-                if isinstance(edges, dict):
-                    return [(e.u, e.v) for e in edges]
-            elif hasattr(edges, "__iter__"):
-                first = next(iter(edges))
-                if hasattr(first, "u"):
-                    return [(e.u, e.v) for e in edges]
-                elif isinstance(first, (tuple, list)) and len(first) == 2:
-                    return [(e[0], e[1]) for e in edges]
-            return None
+        if candidate is None or not hasattr(candidate, "edges"):
+            continue
+        edges = candidate.edges
+        if not edges:
+            continue
+        if isinstance(edges, dict):
+            return [(e.u, e.v) for e in edges.values()]
+        try:
+            first = next(iter(edges))
+        except (StopIteration, TypeError):
+            continue
+        if hasattr(first, "u"):
+            return [(e.u, e.v) for e in edges]
+        if isinstance(first, (tuple, list)) and len(first) == 2:
+            return [(e[0], e[1]) for e in edges]
     return None
 
 

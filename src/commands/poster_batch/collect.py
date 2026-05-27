@@ -7,6 +7,7 @@ import os
 from typing import Any, Iterable
 
 from src.commands.poster_results.plotting import _plot_results as poster_results_plot
+from src.commands.poster_results.runner import PosterResultsAggregator
 from src.commands.poster_batch.schema import (
     POSTER_BATCH_ALGORITHMS,
     POSTER_RESULTS_PROBLEM,
@@ -14,7 +15,33 @@ from src.commands.poster_batch.schema import (
     normalise_s3_prefix,
 )
 from src.commands.poster_batch.store import Store
-from src.commands.poster_results.runner import PosterResultsAggregator
+from src.commands.poster_results.solvers.mr2s_variant import MR2S_VARIANTS
+from src.commands.poster_results.solvers.dnc_strategy import DNC_STRATEGIES
+
+CORE_ALGORITHMS = ("raw_sa", "global", "mr2s", "random")
+
+
+def _build_trial_row(row: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        key: row[key]
+        for key in CORE_ALGORITHMS
+        if key in row
+    }
+    mr2s_variants = {
+        name: row[name]
+        for name in MR2S_VARIANTS
+        if name in row
+    }
+    if mr2s_variants:
+        result["mr2s_variants"] = mr2s_variants
+    dnc_strategies = {
+        name: row[name]
+        for name in DNC_STRATEGIES
+        if name in row
+    }
+    if dnc_strategies:
+        result["dnc_strategies"] = dnc_strategies
+    return result
 
 
 def iter_store_json_objects(store: Store, prefix: str) -> Iterable[dict[str, Any]]:
@@ -59,15 +86,8 @@ def collect_s3_trial_results(
     for n in sizes:
         for trial in range(num_graphs):
             row = by_trial.get((n, trial), {})
-            if all(algorithm in row for algorithm in POSTER_BATCH_ALGORITHMS):
-                trial_results[n].append(
-                    {
-                        "raw_sa": row["raw_sa"],
-                        "global": row["global"],
-                        "mr2s": row["mr2s"],
-                        "random": row["random"],
-                    }
-                )
+            if all(algorithm in row for algorithm in algorithms):
+                trial_results[n].append(_build_trial_row(row))
 
     return trial_results, missing
 
@@ -79,14 +99,17 @@ def collect_and_plot(
     num_graphs: int,
     output_dir: str,
     allow_missing: bool = False,
+    algorithms: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     os.makedirs(output_dir, exist_ok=True)
+    if algorithms is None:
+        algorithms = POSTER_BATCH_ALGORITHMS
     trial_results, missing = collect_s3_trial_results(
         store,
         prefix,
         sizes,
         num_graphs,
-        POSTER_BATCH_ALGORITHMS,
+        algorithms,
     )
     if missing:
         missing_path = os.path.join(output_dir, "missing_tasks.json")
