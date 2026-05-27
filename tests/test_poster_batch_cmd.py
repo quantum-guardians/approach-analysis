@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from src.commands import poster_batch as pb
+from src.commands import poster_batch_tasks as task_runner
 
 
 class FakeRedis:
@@ -126,7 +127,7 @@ def test_worker_processes_task_and_writes_s3(monkeypatch) -> None:
     store = pb.S3Store(s3, "bucket")
     task = pb.build_task(8, 0, 42, "raw_sa", "poster/run", max_attempts=1)
     pb.enqueue_tasks(queue, [task])
-    monkeypatch.setattr(pb, "run_task", _fake_result)
+    monkeypatch.setattr(task_runner, "run_task", _fake_result)
 
     processed = pb.run_worker(queue, store, max_tasks=1, block_timeout=0)
 
@@ -184,7 +185,7 @@ def test_worker_requeues_failed_task_until_max_attempts(monkeypatch) -> None:
             raise RuntimeError("boom")
         return _fake_result(task)
 
-    monkeypatch.setattr(pb, "run_task", flaky_run_task)
+    monkeypatch.setattr(task_runner, "run_task", flaky_run_task)
 
     assert pb.run_worker(queue, store, max_tasks=1, block_timeout=0) == 1
     assert calls == 2
