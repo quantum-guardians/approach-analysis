@@ -6,7 +6,7 @@ import json
 import os
 from typing import Any, Iterable
 
-from src.commands import poster_results
+from src.commands.poster_results.plotting import _plot_results as poster_results_plot
 from src.commands.poster_batch.schema import (
     POSTER_BATCH_ALGORITHMS,
     POSTER_RESULTS_PROBLEM,
@@ -14,7 +14,7 @@ from src.commands.poster_batch.schema import (
     normalise_s3_prefix,
 )
 from src.commands.poster_batch.store import Store
-from src.commands.poster_results_runner import PosterResultsAggregator
+from src.commands.poster_results.runner import PosterResultsAggregator
 
 
 def iter_store_json_objects(store: Store, prefix: str) -> Iterable[dict[str, Any]]:
@@ -98,5 +98,5 @@ def collect_and_plot(
     results = PosterResultsAggregator().aggregate_full(sizes, trial_results)
     with open(os.path.join(output_dir, "poster_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=json_default, allow_nan=True)
-    poster_results._plot_results(results, output_dir)
+    poster_results_plot(results, output_dir)
     return results

@@ -12,7 +12,7 @@ from src.commands.poster_batch.schema import (
     POSTER_RESULTS_PROBLEM,
 )
 from src.commands.poster_batch.store import Store
-from src.commands.poster_results_solvers import _run_poster_algorithm
+from src.commands.poster_results.solvers.trial import _run_poster_algorithm
 
 
 def enqueue_tasks(queue: Queue, tasks: list[dict[str, Any]]) -> int:

@@ -10,10 +10,11 @@ from typing import Any, Iterable
 import numpy as np
 
 from src.cache import generate_cache_key
+from src.commands.poster_results.solvers.trial import ALL_ALGORITHMS
 
 POSTER_BATCH_SCHEMA_VERSION = 1
 POSTER_RESULTS_PROBLEM = "poster-results"
-POSTER_BATCH_ALGORITHMS = ("raw_sa", "global", "mr2s", "random")
+POSTER_BATCH_ALGORITHMS = ALL_ALGORITHMS
 DEFAULT_QUEUE = "poster-results"
 DEFAULT_VISIBILITY_TIMEOUT = 5
 

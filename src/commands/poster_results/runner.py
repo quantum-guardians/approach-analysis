@@ -1,4 +1,4 @@
-"""Object-oriented runners for the ``poster-results`` experiment."""
+"""Runners for the ``poster-results`` experiment."""
 
 from __future__ import annotations
 
@@ -10,15 +10,16 @@ import os
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from src.commands.poster_results_models import (
+from src.commands.poster_results.models import (
     Mr2sTrialResult,
     PosterResultsSummary,
     PosterTrialResult,
     TrialPayload,
     coerce_trial_payload,
 )
-from src.commands.poster_results_solvers import _mean_finite, _normalize_random_baseline
-from src.commands.poster_results_solvers import DNC_STRATEGIES, MR2S_VARIANTS
+from src.commands.poster_results.solvers.base import _mean_finite
+from src.commands.poster_results.solvers.mr2s_variant import MR2S_VARIANTS
+from src.commands.poster_results.solvers.dnc_strategy import DNC_STRATEGIES
 
 TrialResult = tuple[int, int, TrialPayload | dict[str, Any]]
 TrialTask = tuple[int, int, int | None, str | None]
@@ -58,6 +59,22 @@ FULL_TIMING_KEYS = [
     "iterated_local_search_mr2s_solve", "iterated_local_search_mr2s_embed",
 ]
 MR2S_TIMING_KEYS = ["graph", "clustered_solve", "clustered_embed"]
+
+
+def _normalize_random_baseline(result: Any) -> Any:
+    from src.commands.poster_results.models import RandomBaselineResult
+    if isinstance(result, RandomBaselineResult):
+        return result.normalized()
+
+    sample_count = result.get("sample_count")
+    missing_legacy_sample = sample_count is None and result.get("apsp") == 0 and result.get("flow") == 0
+    if sample_count == 0 or missing_legacy_sample:
+        normalized = dict(result)
+        normalized["apsp"] = float("nan")
+        normalized["flow"] = float("nan")
+        normalized["sample_count"] = 0
+        return normalized
+    return result
 
 
 def _coerce_full_result(result: PosterTrialResult | dict[str, Any]) -> PosterTrialResult:
@@ -102,8 +119,6 @@ class PosterRunConfig:
 
 
 class TrialScheduler:
-    """Trial 실행 방식을 캡슐화해 순차/병렬 실행 정책을 교체하기 쉽게 한다."""
-
     def effective_workers(self, total_tasks: int, requested_workers: int | None) -> int:
         if requested_workers is not None:
             return requested_workers
@@ -129,15 +144,12 @@ class TrialScheduler:
                 yield future.result()
 
     def _process_pool_context(self) -> multiprocessing.context.BaseContext:
-        # mr2s solver 객체는 spawn보다 fork에서 초기화 비용과 pickle 제약이 적다.
         if "fork" in multiprocessing.get_all_start_methods():
             return multiprocessing.get_context("fork")
         return multiprocessing.get_context()
 
 
 class PosterResultsAggregator:
-    """Solver별 trial 결과를 poster_results.json 스키마로 집계한다."""
-
     def empty_results(self, sizes: list[int]) -> dict[str, Any]:
         return PosterResultsSummary(sizes=sizes).to_dict()
 
@@ -164,7 +176,6 @@ class PosterResultsAggregator:
         }
 
         for n in sizes:
-            # full run은 네 solver 계열의 trial 결과를 같은 size 축으로 집계한다.
             a_rsa, f_rsa = [], []
             a_glb, f_glb, v_glb, s_glb, p_glb = [], [], [], [], []
             a_cls, f_cls, v_cls, s_cls = [], [], [], []
@@ -308,7 +319,6 @@ class PosterResultsAggregator:
         mr2s_summary = PosterResultsSummary(sizes=list(trial_results)).mr2s
 
         for n in trial_results:
-            # 각 size의 trial 값을 먼저 모은 뒤 NaN/Infinity를 제외하고 평균낸다.
             a_cls, f_cls, v_cls, s_cls = [], [], [], []
             pt_cls, pmax_cls, pmean_cls, pmin_cls = [], [], [], []
             timing_values = {key: [] for key in MR2S_TIMING_KEYS}
@@ -343,7 +353,6 @@ class PosterResultsAggregator:
             self._append_timings_to_dict(partial_results["timings"], timing_values)
 
         partial_results["mr2s"] = mr2s_summary.to_dict()
-        # 기존 poster_results.json의 다른 solver 결과와 요청하지 않은 MR2S size를 유지한다.
         merged = _merge_results_by_size(results, partial_results, replace_sections={"mr2s"})
         return _merge_timing_keys_by_size(
             merged,
@@ -535,11 +544,6 @@ def _series_by_size(results: dict[str, Any], section: str, key: str) -> dict[int
 
 
 class PosterResultsRunner:
-    """Full poster experiment runner.
-
-    새 solver나 metric을 넣으려면 trial worker나 aggregator를 교체하면 된다.
-    """
-
     cache_name = "poster_trial_cache"
 
     def __init__(
@@ -559,13 +563,11 @@ class PosterResultsRunner:
         self.aggregator = aggregator or PosterResultsAggregator()
 
     def run(self) -> dict[str, Any]:
-        # initial dir cache
         os.makedirs(self.config.output_dir, exist_ok=True)
         existing_results = self._load_existing_results()
         run_sizes = self._sizes_to_compute(existing_results)
         cache_dir = self.config.resolved_cache_dir(self.cache_name)
 
-        # initial tasks
         tasks = self._build_tasks(cache_dir, run_sizes)
         total_tasks = len(tasks)
         workers = self.scheduler.effective_workers(total_tasks, self.config.num_workers)
@@ -641,8 +643,6 @@ class PosterResultsRunner:
 
 
 class Mr2sOnlyPosterResultsRunner(PosterResultsRunner):
-    """기존 poster 결과에 MR2S 결과만 다시 계산해 병합하는 runner."""
-
     cache_name = "poster_mr2s_trial_cache"
 
     def __init__(
@@ -669,7 +669,6 @@ class Mr2sOnlyPosterResultsRunner(PosterResultsRunner):
         os.makedirs(self.config.output_dir, exist_ok=True)
         source_results_path = self._source_results_path()
         if not os.path.exists(source_results_path):
-            # MR2S-only는 기존 baseline 결과에 merge하는 모드이므로 원본 JSON이 필요하다.
             raise FileNotFoundError(
                 f"MR2S-only mode needs existing results to merge: {source_results_path}"
             )

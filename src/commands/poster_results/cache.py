@@ -13,8 +13,6 @@ TrialResult = TypeVar("TrialResult")
 
 
 class CachedTrialWorker:
-    """Pickle-safe callable wrapper for cached trial execution."""
-
     def __init__(
         self,
         worker: Callable[[TrialTask], tuple[int, int, Any]],
@@ -30,7 +28,6 @@ class CachedTrialWorker:
     def __call__(self, task: CachedTrialTask) -> tuple[int, int, Any]:
         n, trial, seed, cache_dir = task
         if cache_dir is None:
-            # 캐시를 끈 실행도 progress/JSON 스키마를 동일하게 유지한다.
             n, trial, result = self.worker((n, trial, seed))
             result = self.coerce_result(result)
             result.mark_cache_hit(False)
@@ -40,7 +37,6 @@ class CachedTrialWorker:
         cache_key = self.cache_key(n, trial, seed)
         cached_result = cache.get(cache_key)
         if isinstance(cached_result, dict):
-            # cache hit 표시는 timing에도 전파되어 progress 출력이 짧게 끝난다.
             result = self.from_dict(cached_result)
             result.mark_cache_hit(True)
             return n, trial, result
@@ -60,8 +56,6 @@ def cached_trial_result(
     [Callable[[TrialTask], tuple[int, int, Any]]],
     Callable[[CachedTrialTask], tuple[int, int, TrialResult]],
 ]:
-    """Wrap a trial worker with disk cache read/write behavior."""
-
     def decorator(
         worker: Callable[[TrialTask], tuple[int, int, Any]],
     ) -> Callable[[CachedTrialTask], tuple[int, int, TrialResult]]:

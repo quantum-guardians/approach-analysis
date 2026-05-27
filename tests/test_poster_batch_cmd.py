@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from src.commands import poster_batch as pb
-from src.commands.poster_batch import collect as batch_collect
 from src.commands.poster_batch import tasks as task_runner
+from src.commands.poster_results import plotting as pr_plotting
 
 
 class FakeRedis:
@@ -92,6 +92,23 @@ def _fake_result(task: dict[str, Any]) -> dict[str, Any]:
             "partition": {"selected_reason": "test"},
         },
         "random": {"apsp": 16.0, "flow": 17.0, "sample_count": 1},
+        "robbin_mr2s": {"apsp": 0.1, "flow": 0.2, "qvars": 1.0, "sg": 2.0, "pt": 3.0},
+        "iterated_local_search_mr2s": {"apsp": 0.1, "flow": 0.2, "qvars": 1.0, "sg": 2.0, "pt": 3.0},
+        "poster": {
+            "apsp": 0.1, "flow": 0.2, "qvars": 1.0, "sg": 2.0,
+            "phys_total": 3.0, "phys_max": 4.0, "phys_mean": 5.0, "phys_min": 6.0,
+            "partition": {},
+        },
+        "embedding_aware": {
+            "apsp": 0.1, "flow": 0.2, "qvars": 1.0, "sg": 2.0,
+            "phys_total": 3.0, "phys_max": 4.0, "phys_mean": 5.0, "phys_min": 6.0,
+            "partition": {},
+        },
+        "degeneracy_pruning": {
+            "apsp": 0.1, "flow": 0.2, "qvars": 1.0, "sg": 2.0,
+            "phys_total": 3.0, "phys_max": 4.0, "phys_mean": 5.0, "phys_min": 6.0,
+            "partition": {},
+        },
     }[algorithm]
     return {
         "algorithm": algorithm,
@@ -196,7 +213,7 @@ def test_worker_requeues_failed_task_until_max_attempts(monkeypatch) -> None:
 def test_collect_s3_results_aggregates_complete_chunks(tmp_path, monkeypatch) -> None:
     s3 = FakeS3()
     store = pb.S3Store(s3, "bucket")
-    monkeypatch.setattr(batch_collect.poster_results, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
     tasks = pb.build_tasks(
         sizes=[8],
         num_graphs=1,
@@ -234,14 +251,14 @@ def test_collect_s3_results_reports_missing_chunks() -> None:
         "poster/run",
         sizes=[8],
         num_graphs=1,
-        algorithms=pb.POSTER_BATCH_ALGORITHMS,
+        algorithms=("raw_sa", "global", "mr2s", "random"),
     )
 
     assert {item["algorithm"] for item in missing} == {"global", "mr2s", "random"}
 
 
 def test_collect_and_plot_raises_when_chunks_are_missing(tmp_path) -> None:
-    with pytest.raises(RuntimeError, match="Missing 4 poster batch chunk"):
+    with pytest.raises(RuntimeError, match="Missing .* poster batch chunk"):
         pb.collect_and_plot(
             pb.S3Store(FakeS3(), "bucket"),
             "poster/run",
