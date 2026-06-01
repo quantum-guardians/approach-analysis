@@ -59,6 +59,16 @@ FULL_TIMING_KEYS = [
     "iterated_local_search_mr2s_solve", "iterated_local_search_mr2s_embed",
 ]
 MR2S_TIMING_KEYS = ["graph", "clustered_solve", "clustered_embed"]
+REQUIRED_RESULT_SERIES_KEYS = {
+    "mr2s": [
+        "apsp", "flow", "qubo_vars", "subgraph_size",
+        "phys_total", "phys_max", "phys_mean", "phys_min", "partition",
+    ],
+    "global": ["apsp", "flow", "qubo_vars", "subgraph_size", "phys_total"],
+    "raw_sa": ["apsp", "flow"],
+    "random": ["apsp", "flow"],
+    "timings": FULL_TIMING_KEYS,
+}
 
 
 def _normalize_random_baseline(result: Any) -> Any:
@@ -543,6 +553,43 @@ def _series_by_size(results: dict[str, Any], section: str, key: str) -> dict[int
     }
 
 
+def _has_series_value(results: dict[str, Any], section: str, key: str, size: int) -> bool:
+    return size in _series_by_size(results, section, key)
+
+
+def _has_nested_series_value(
+    results: dict[str, Any],
+    section: str,
+    item_name: str,
+    key: str,
+    size: int,
+) -> bool:
+    return size in _nested_series_by_size(results, section, item_name, key)
+
+
+def _has_current_result_schema(results: dict[str, Any], size: int) -> bool:
+    # 새 solver/metric이 추가되면 기존 poster_results.json만 보고 size 전체를 건너뛰지 않는다.
+    for section, keys in REQUIRED_RESULT_SERIES_KEYS.items():
+        for key in keys:
+            if not _has_series_value(results, section, key, size):
+                return False
+
+    for strategy_name in DNC_STRATEGIES:
+        for key in (
+            "apsp", "flow", "qubo_vars", "subgraph_size",
+            "phys_total", "phys_max", "phys_mean", "phys_min", "partition",
+        ):
+            if not _has_nested_series_value(results, "dnc_strategies", strategy_name, key, size):
+                return False
+
+    for variant_name in MR2S_VARIANTS:
+        for key in ("apsp", "flow", "qubo_vars", "subgraph_size", "phys_total"):
+            if not _has_nested_series_value(results, "mr2s_variants", variant_name, key, size):
+                return False
+
+    return True
+
+
 class PosterResultsRunner:
     cache_name = "poster_trial_cache"
 
@@ -577,7 +624,12 @@ class PosterResultsRunner:
             f"{self.config.num_graphs} graph(s) each, {workers} worker process(es)."
         )
         if existing_results is not None:
-            reused_sizes = [size for size in self.config.sizes if size in existing_results.get("sizes", [])]
+            reused_sizes = [
+                size
+                for size in self.config.sizes
+                if size in existing_results.get("sizes", [])
+                and _has_current_result_schema(existing_results, size)
+            ]
             if reused_sizes:
                 print(f"Reusing existing poster results for size(s): {reused_sizes}")
         if cache_dir is not None:
@@ -609,7 +661,11 @@ class PosterResultsRunner:
         if existing_results is None:
             return self.config.sizes
         existing_sizes = set(existing_results.get("sizes", []))
-        return [size for size in self.config.sizes if size not in existing_sizes]
+        return [
+            size
+            for size in self.config.sizes
+            if size not in existing_sizes or not _has_current_result_schema(existing_results, size)
+        ]
 
     def _build_tasks(self, cache_dir: str | None, sizes: list[int]) -> list[TrialTask]:
         return [

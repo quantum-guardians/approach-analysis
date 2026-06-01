@@ -113,6 +113,7 @@ ALL_ALGORITHMS = (
 ALGORITHM_SOLVER_MAP: dict[str, type] = {
     "raw_sa": RawSASolver,
     "global": GlobalQuboSolver,
+    "mr2s": DncStrategySolver,
     "random": RandomBaselineSolver,
 }
 ALGORITHM_SOLVER_MAP.update({name: Mr2sVariantSolver for name in MR2S_VARIANTS})
@@ -134,7 +135,9 @@ def _run_poster_algorithm(
     if solver_cls is None:
         raise ValueError(f"Unknown poster algorithm: {algorithm}")
 
-    if algorithm in MR2S_VARIANTS:
+    if algorithm == "mr2s":
+        solver = DncStrategySolver("poster")
+    elif algorithm in MR2S_VARIANTS:
         solver = Mr2sVariantSolver(algorithm)
     elif algorithm in DNC_STRATEGIES:
         solver = DncStrategySolver(algorithm)

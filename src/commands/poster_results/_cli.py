@@ -8,7 +8,7 @@ from typing import Any
 import networkx as nx
 
 from src.cache import generate_cache_key
-from .cache import cached_trial_result
+from .cache import CachedPosterAlgorithmWorker, CachedSplitTrialWorker
 from .models import (
     Mr2sTrialResult,
     PosterTrialResult,
@@ -99,6 +99,17 @@ def _poster_mr2s_trial_cache_key(n: int, trial: int, seed: int | None) -> str:
     )
 
 
+def _poster_algorithm_cache_key(n: int, trial: int, seed: int | None, algorithm: str) -> str:
+    return generate_cache_key(
+        "poster-results-algorithm",
+        version=POSTER_CACHE_VERSION,
+        n=n,
+        trial=trial,
+        seed=seed,
+        algorithm=algorithm,
+    )
+
+
 def _coerce_full_trial_result(result: PosterTrialResult | dict[str, Any]) -> PosterTrialResult:
     if isinstance(result, PosterTrialResult):
         return result
@@ -117,11 +128,18 @@ def _run_trial_worker(
     return _solver_helpers._run_trial(task)
 
 
-_run_trial_with_cache = cached_trial_result(
-    cache_key=_poster_trial_cache_key,
-    from_dict=PosterTrialResult.from_dict,
-    coerce_result=_coerce_full_trial_result,
-)(_run_trial_worker)
+def _run_algorithm_worker(n: int, trial: int, seed: int | None, algorithm: str) -> Any:
+    return _solver_helpers._run_poster_algorithm(n, trial, seed, algorithm)
+
+
+_run_trial_with_cache = CachedSplitTrialWorker(
+    full_worker=_run_trial_worker,
+    algorithm_runner=_run_algorithm_worker,
+    algorithm_cache_key=_poster_algorithm_cache_key,
+    legacy_trial_cache_key=_poster_trial_cache_key,
+    full_from_dict=PosterTrialResult.from_dict,
+    coerce_full_result=_coerce_full_trial_result,
+)
 
 
 def _run_mr2s_trial_worker(
@@ -130,11 +148,17 @@ def _run_mr2s_trial_worker(
     return _solver_helpers._run_mr2s_trial(task)
 
 
-_run_mr2s_trial_with_cache = cached_trial_result(
-    cache_key=_poster_mr2s_trial_cache_key,
-    from_dict=Mr2sTrialResult.from_dict,
-    coerce_result=_coerce_mr2s_trial_result,
-)(_run_mr2s_trial_worker)
+_run_mr2s_trial_with_cache = CachedPosterAlgorithmWorker(
+    algorithm="poster",
+    fallback_worker=_run_mr2s_trial_worker,
+    algorithm_runner=_run_algorithm_worker,
+    algorithm_cache_key=_poster_algorithm_cache_key,
+    legacy_mr2s_cache_key=_poster_mr2s_trial_cache_key,
+    legacy_trial_cache_key=_poster_trial_cache_key,
+    mr2s_from_dict=Mr2sTrialResult.from_dict,
+    full_from_dict=PosterTrialResult.from_dict,
+    coerce_mr2s_result=_coerce_mr2s_trial_result,
+)
 
 
 def _process_pool_context() -> Any:

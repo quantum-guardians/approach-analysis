@@ -19,9 +19,16 @@ from src.commands.poster_results.runner import (
     _merge_results_by_size,
 )
 from src.commands.poster_results.partition_strategy import DncPartitionStrategy
-from src.commands.poster_results.models import Mr2sSolverResult, TrialTimings
+from src.commands.poster_results.models import (
+    BasicSolverResult,
+    GlobalSolverResult,
+    Mr2sSolverResult,
+    RandomBaselineResult,
+    TrialTimings,
+)
 from src.commands.poster_results.solvers.dnc_strategy import DncStrategySolver
 from src.commands.poster_results import plotting as pr_plotting
+from src.cache import SimpleCache
 
 
 def _fake_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
@@ -59,6 +66,73 @@ def _fake_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, 
     }
 
 
+def _fake_algorithm(
+    n: int,
+    trial: int,
+    seed: int | None,
+    algorithm: str,
+) -> tuple[Any, TrialTimings]:
+    value = float(n + trial + (seed or 0))
+    if algorithm == "raw_sa":
+        return BasicSolverResult(apsp=value, flow=value + 1), TrialTimings({
+            "graph": value + 20,
+            "raw_sa": value + 21,
+        })
+    if algorithm == "global":
+        return GlobalSolverResult(
+            apsp=value + 2,
+            flow=value + 3,
+            qvars=value + 4,
+            subgraph_size=value + 5,
+            physical_total=value + 6,
+        ), TrialTimings({
+            "graph": value + 20,
+            "global_solve": value + 22,
+            "global_embed": value + 23,
+        })
+    if algorithm == "random":
+        return RandomBaselineResult(
+            apsp=value + 15,
+            flow=value + 16,
+            sample_count=1,
+            strong_sample_count=1,
+        ), TrialTimings({
+            "graph": value + 20,
+            "random": value + 26,
+        })
+    if algorithm in {"robbin_mr2s", "iterated_local_search_mr2s"}:
+        return GlobalSolverResult(
+            apsp=value + 30,
+            flow=value + 31,
+            qvars=value + 32,
+            subgraph_size=value + 33,
+            physical_total=value + 34,
+        ), TrialTimings({
+            "graph": value + 20,
+            f"{algorithm}_solve": value + 35,
+            f"{algorithm}_embed": value + 36,
+        })
+    return Mr2sSolverResult(
+        apsp=value + 7,
+        flow=value + 8,
+        qvars=value + 9,
+        subgraph_size=value + 10,
+        phys_total=value + 11,
+        phys_max=value + 12,
+        phys_mean=value + 13,
+        phys_min=value + 14,
+        partition={"selected_reason": algorithm},
+    ), TrialTimings({
+        "graph": value + 20,
+        f"dnc_{algorithm}_solve": value + 24,
+        f"dnc_{algorithm}_embed": value + 25,
+        **({
+            "clustered_solve": value + 24,
+            "clustered_embed": value + 25,
+        } if algorithm == "poster" else {}),
+    })
+
+
 def test_poster_trial_cache_key_is_stable() -> None:
     key = pr._poster_trial_cache_key(n=20, trial=3, seed=42)
     assert key == (
@@ -72,12 +146,12 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
 
     call_count = 0
 
-    def counted_trial(task):
+    def counted_algorithm(n, trial, seed, algorithm):
         nonlocal call_count
         call_count += 1
-        return _fake_trial(task)
+        return _fake_algorithm(n, trial, seed, algorithm)
 
-    monkeypatch.setattr(pr._solver_helpers, "_run_trial", counted_trial)
+    monkeypatch.setattr(pr._solver_helpers, "_run_poster_algorithm", counted_algorithm)
 
     kwargs = dict(
         sizes=[8],
@@ -88,13 +162,44 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
     )
 
     pr.run(**kwargs)
-    assert call_count == 2
+    assert call_count == 16
     assert (tmp_path / "poster_results.json").exists()
-    assert len(list((tmp_path / "poster_trial_cache").glob("*.pkl"))) == 2
+    assert len(list((tmp_path / "poster_trial_cache").glob("*/*.pkl"))) == 16
 
+    (tmp_path / "poster_results.json").unlink()
     call_count = 0
     pr.run(**kwargs)
     assert call_count == 0
+
+
+def test_run_migrates_legacy_full_trial_cache_to_solver_cache(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
+    cache_dir = tmp_path / "poster_trial_cache"
+    legacy_cache = SimpleCache(str(cache_dir))
+    legacy_key = pr._poster_trial_cache_key(n=8, trial=0, seed=0)
+    _, _, legacy_result = _fake_trial((8, 0, 0))
+    legacy_cache.set(legacy_key, legacy_result)
+
+    call_count = 0
+
+    def counted_algorithm(n, trial, seed, algorithm):
+        nonlocal call_count
+        call_count += 1
+        return _fake_algorithm(n, trial, seed, algorithm)
+
+    monkeypatch.setattr(pr._solver_helpers, "_run_poster_algorithm", counted_algorithm)
+
+    pr.run(
+        sizes=[8],
+        num_graphs=1,
+        seed=0,
+        output_dir=str(tmp_path),
+        num_workers=0,
+    )
+
+    assert call_count == 4
+    assert (cache_dir / "raw_sa").exists()
+    assert len(list(cache_dir.glob("*/*.pkl"))) == 8
 
 
 def test_run_can_disable_poster_trial_cache(tmp_path, monkeypatch) -> None:
@@ -142,17 +247,45 @@ def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeyp
         "raw_sa": {"apsp": [60.0], "flow": [61.0]},
         "random": {"apsp": [50.0], "flow": [51.0]},
     }
+    existing["timings"] = {
+        key: [1.0]
+        for key in RESULT_SERIES_KEYS["timings"]
+    }
+    existing["dnc_strategies"] = {
+        name: {
+            "apsp": [80.0],
+            "flow": [81.0],
+            "qubo_vars": [82.0],
+            "subgraph_size": [83.0],
+            "phys_total": [84.0],
+            "phys_max": [85.0],
+            "phys_mean": [86.0],
+            "phys_min": [87.0],
+            "partition": [[{"selected_reason": name}]],
+        }
+        for name in ("poster", "embedding_aware", "degeneracy_pruning")
+    }
+    existing["mr2s_variants"] = {
+        name: {
+            "apsp": [90.0],
+            "flow": [91.0],
+            "qubo_vars": [92.0],
+            "subgraph_size": [93.0],
+            "phys_total": [94.0],
+        }
+        for name in ("robbin_mr2s", "iterated_local_search_mr2s")
+    }
     results_path = tmp_path / "poster_results.json"
     results_path.write_text(json.dumps(existing))
 
     call_count = 0
 
-    def counted_trial(task):
+    def counted_algorithm(n, trial, seed, algorithm):
         nonlocal call_count
         call_count += 1
-        return _fake_trial(task)
+        return _fake_algorithm(n, trial, seed, algorithm)
 
-    monkeypatch.setattr(pr._solver_helpers, "_run_trial", counted_trial)
+    monkeypatch.setattr(pr._solver_helpers, "_run_poster_algorithm", counted_algorithm)
 
     pr.run(
         sizes=[8, 9],
@@ -163,14 +296,14 @@ def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeyp
     )
 
     merged = json.loads(results_path.read_text())
-    assert call_count == 1
+    assert call_count == 8
     assert merged["sizes"] == [8, 9]
     assert merged["raw_sa"]["apsp"][0] == 60.0
     assert merged["global"]["apsp"][0] == 70.0
     assert merged["mr2s"]["apsp"][0] == 80.0
     assert merged["random"]["apsp"][0] == 50.0
     assert merged["raw_sa"]["apsp"][1] == 9.0
-    assert math.isnan(merged["timings"]["graph"][0])
+    assert merged["timings"]["graph"][0] == 1.0
     assert merged["timings"]["graph"][1] == 29.0
 
 
