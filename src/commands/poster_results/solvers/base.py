@@ -15,9 +15,9 @@ from mr2s_module import (
     FlowPolyGenerator,
     NHop,
     NHopPolyGenerator,
+    QuboSolver,
     QuboMR2SSolver,
     SAMR2SSolver,
-    SAQuboSolver,
     SmallWorldSpec,
 )
 
@@ -68,12 +68,20 @@ def _build_sa_solver(seed: int | None = None) -> SAMR2SSolver:
     )
 
 
-def _build_qubo_solver(edge_orienter: Any | None = None) -> QuboMR2SSolver:
-    n_hop_poly = NHopPolyGenerator()
-    n_hop_poly.small_world_spec = spec
+def _build_qubo_solver(
+    edge_orienter: Any | None = None,
+    use_qa: bool = False,
+    qa_num_reads: int = 100,
+) -> QuboMR2SSolver:
+    n_hop_poly = NHopPolyGenerator(small_world_spec=spec)
+    qubo_solver = (
+        QuboSolver.create_qa_solver(ApspSumRanker(), num_reads=qa_num_reads)
+        if use_qa
+        else QuboSolver.create_sa_solver(ApspSumRanker())
+    )
     return QuboMR2SSolver(
         edge_orienter=edge_orienter,
-        qubo_solver=SAQuboSolver(ApspSumRanker()),
+        qubo_solver=qubo_solver,
         evaluator=Evaluator(),
         poly_generators=[n_hop_poly, FlowPolyGenerator()],
     )
@@ -87,16 +95,16 @@ def _extract_directed_edges_from_solution(sol: Any) -> list[tuple[int, int]] | N
         edges = candidate.edges
         if not edges:
             continue
-        if isinstance(edges, dict):
-            return [(e.u, e.v) for e in edges.values()]
-        try:
-            first = next(iter(edges))
-        except (StopIteration, TypeError):
+        edge_list = list(edges.values()) if isinstance(edges, dict) else list(edges)
+        if not edge_list:
             continue
-        if hasattr(first, "u"):
-            return [(e.u, e.v) for e in edges]
+        first = edge_list[0]
+        if hasattr(first, "endpoints") and callable(first.endpoints):
+            return [e.endpoints() for e in edge_list]
+        if hasattr(first, "u") and hasattr(first, "v"):
+            return [(e.u, e.v) for e in edge_list]
         if isinstance(first, (tuple, list)) and len(first) == 2:
-            return [(e[0], e[1]) for e in edges]
+            return [(e[0], e[1]) for e in edge_list]
     return None
 
 

@@ -23,7 +23,11 @@ from src.commands.poster_results.solvers.base import (
 from src.commands.poster_results.solvers.raw_sa import RawSASolver
 from src.commands.poster_results.solvers.global_qubo import GlobalQuboSolver
 from src.commands.poster_results.solvers.mr2s_variant import Mr2sVariantSolver, MR2S_VARIANTS
-from src.commands.poster_results.solvers.dnc_strategy import DncStrategySolver, DNC_STRATEGIES
+from src.commands.poster_results.solvers.dnc_strategy import (
+    CLUSTER_DNC_STRATEGY,
+    DncStrategySolver,
+    DNC_STRATEGIES,
+)
 from src.commands.poster_results.solvers.random_baseline import RandomBaselineSolver
 
 
@@ -37,16 +41,19 @@ def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, PosterTrial
     timings.values["graph"] = time.monotonic() - start
 
     # 1. Raw SA baseline
+    print(f"[{n=}, {trial=}] Running Raw SA...")
     res_rsa, rsa_timings = RawSASolver().run(graph, n, seed=trial_seed)
     timings.values.update(rsa_timings.values)
 
     # 2. Global QUBO baseline
+    print(f"[{n=}, {trial=}] Running Global QUBO...")
     res_glb, glb_timings = GlobalQuboSolver().run(graph, n, seed=trial_seed)
     timings.values.update(glb_timings.values)
 
     # 3. MR2S variants
     mr2s_variant_results: dict[str, GlobalSolverResult] = {}
     for variant_name in MR2S_VARIANTS:
+        print(f"[{n=}, {trial=}] Running MR2S variant: {variant_name}...")
         result, variant_timings = Mr2sVariantSolver(variant_name).run(
             graph, n, seed=trial_seed
         )
@@ -56,13 +63,14 @@ def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, PosterTrial
     # 4. DnC strategies
     dnc_strategy_results: dict[str, Mr2sSolverResult] = {}
     for strategy_name in DNC_STRATEGIES:
+        print(f"[{n=}, {trial=}] Running DnC strategy: {strategy_name}...")
         result, strategy_timings = DncStrategySolver(strategy_name).run(
             graph, n, seed=trial_seed
         )
         dnc_strategy_results[strategy_name] = result
         timings.values.update(strategy_timings.values)
 
-    res_cls = dnc_strategy_results.get("poster", Mr2sSolverResult(
+    res_cls = dnc_strategy_results.get(CLUSTER_DNC_STRATEGY, Mr2sSolverResult(
         apsp=float("nan"),
         flow=float("nan"),
         qvars=float("nan"),
@@ -74,6 +82,7 @@ def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, PosterTrial
     ))
 
     # 5. Random baseline
+    print(f"[{n=}, {trial=}] Running Random baseline...")
     start = time.monotonic()
     res_rnd = RandomBaselineSolver()._calculate(graph, n, trial_seed)
     timings.values["random"] = time.monotonic() - start
@@ -96,7 +105,8 @@ def _run_mr2s_trial(task: tuple[int, int, int | None]) -> tuple[int, int, Mr2sTr
     graph = _generate_delaunay_graph(n, trial_seed)
     graph_time = time.monotonic() - start
 
-    res_cls, timings = DncStrategySolver("poster").run(graph, n, seed=trial_seed)
+    print(f"[{n=}, {trial=}] Running DnC strategy: {CLUSTER_DNC_STRATEGY}...")
+    res_cls, timings = DncStrategySolver(CLUSTER_DNC_STRATEGY).run(graph, n, seed=trial_seed)
     timings.values["graph"] = graph_time
     return n, trial, Mr2sTrialResult(
         mr2s=res_cls,
@@ -136,7 +146,7 @@ def _run_poster_algorithm(
         raise ValueError(f"Unknown poster algorithm: {algorithm}")
 
     if algorithm == "mr2s":
-        solver = DncStrategySolver("poster")
+        solver = DncStrategySolver(CLUSTER_DNC_STRATEGY)
     elif algorithm in MR2S_VARIANTS:
         solver = Mr2sVariantSolver(algorithm)
     elif algorithm in DNC_STRATEGIES:
@@ -144,6 +154,7 @@ def _run_poster_algorithm(
     else:
         solver = solver_cls()
 
+    print(f"[{n=}, {trial=}] Running algorithm: {algorithm}...")
     result, timings = solver.run(graph, n, seed=trial_seed)
     timings.values["graph"] = graph_time
     return result, timings

@@ -129,7 +129,7 @@ def _fake_algorithm(
         **({
             "clustered_solve": value + 24,
             "clustered_embed": value + 25,
-        } if algorithm == "poster" else {}),
+        } if algorithm == "embedding_aware" else {}),
     })
 
 
@@ -162,9 +162,9 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
     )
 
     pr.run(**kwargs)
-    assert call_count == 16
+    assert call_count == 12
     assert (tmp_path / "poster_results.json").exists()
-    assert len(list((tmp_path / "poster_trial_cache").glob("*/*.pkl"))) == 16
+    assert len(list((tmp_path / "poster_trial_cache").glob("*/*.pkl"))) == 12
 
     (tmp_path / "poster_results.json").unlink()
     call_count = 0
@@ -197,9 +197,9 @@ def test_run_migrates_legacy_full_trial_cache_to_solver_cache(tmp_path, monkeypa
         num_workers=0,
     )
 
-    assert call_count == 4
+    assert call_count == 3
     assert (cache_dir / "raw_sa").exists()
-    assert len(list(cache_dir.glob("*/*.pkl"))) == 8
+    assert len(list(cache_dir.glob("*/*.pkl"))) == 6
 
 
 def test_run_can_disable_poster_trial_cache(tmp_path, monkeypatch) -> None:
@@ -296,7 +296,7 @@ def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeyp
     )
 
     merged = json.loads(results_path.read_text())
-    assert call_count == 8
+    assert call_count == 6
     assert merged["sizes"] == [8, 9]
     assert merged["raw_sa"]["apsp"][0] == 60.0
     assert merged["global"]["apsp"][0] == 70.0
@@ -643,3 +643,17 @@ def test_divide_graph_with_diagnostics_records_selected_partition(monkeypatch) -
     assert diagnostics["selected_reason"] == "partition_found"
     assert len(diagnostics["selected_probes"]) == 3
     assert any(attempt["accepted"] for attempt in diagnostics["attempts"])
+
+
+def test_build_dnc_qubo_solver_sets_subgraph_processes_for_qa(monkeypatch) -> None:
+    from src.commands.poster_results.solvers import dnc_strategy
+
+    # Mock _build_qubo_solver to avoid actual D-Wave connection/initialization
+    monkeypatch.setattr(dnc_strategy, "_build_qubo_solver", lambda use_qa: None)
+
+    solver_qa = dnc_strategy._build_dnc_qubo_solver(use_qa=True)
+    assert solver_qa.subgraph_processes == 1
+
+    solver_sa = dnc_strategy._build_dnc_qubo_solver(use_qa=False)
+    assert solver_sa.subgraph_processes is None
+

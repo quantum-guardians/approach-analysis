@@ -16,7 +16,7 @@ from src.commands.poster_results.models import (
     RandomBaselineResult,
     TrialTimings,
 )
-from src.commands.poster_results.solvers.dnc_strategy import DNC_STRATEGIES
+from src.commands.poster_results.solvers.dnc_strategy import CLUSTER_DNC_STRATEGY, DNC_STRATEGIES
 from src.commands.poster_results.solvers.mr2s_variant import MR2S_VARIANTS
 
 TrialTask = tuple[int, int, int | None]
@@ -116,8 +116,16 @@ def _timing_keys_for_algorithm(algorithm: str) -> tuple[str, ...]:
         return ("graph", "random")
     if algorithm in MR2S_VARIANTS:
         return ("graph", f"{algorithm}_solve", f"{algorithm}_embed")
-    if algorithm == "poster":
-        return ("graph", "clustered_solve", "clustered_embed", "dnc_poster_solve", "dnc_poster_embed")
+    if algorithm == "mr2s":
+        return (
+            "graph", "clustered_solve", "clustered_embed",
+            f"dnc_{CLUSTER_DNC_STRATEGY}_solve", f"dnc_{CLUSTER_DNC_STRATEGY}_embed",
+        )
+    if algorithm == CLUSTER_DNC_STRATEGY:
+        return (
+            "graph", "clustered_solve", "clustered_embed",
+            f"dnc_{algorithm}_solve", f"dnc_{algorithm}_embed",
+        )
     if algorithm in DNC_STRATEGIES:
         return ("graph", f"dnc_{algorithm}_solve", f"dnc_{algorithm}_embed")
     return ("graph",)
@@ -165,6 +173,8 @@ def _extract_legacy_algorithm(
         result = legacy_result.random
     elif algorithm in MR2S_VARIANTS:
         result = legacy_result.mr2s_variants.get(algorithm)
+    elif algorithm == "mr2s":
+        result = legacy_result.dnc_strategies.get(CLUSTER_DNC_STRATEGY, legacy_result.mr2s)
     elif algorithm in DNC_STRATEGIES:
         result = legacy_result.dnc_strategies.get(algorithm)
         if result is None and algorithm == "poster":
@@ -215,7 +225,7 @@ def _build_trial_result(
         for name, result in algorithm_results.items()
         if name in DNC_STRATEGIES and isinstance(result, Mr2sSolverResult)
     }
-    mr2s_result = dnc_results.get("poster", _missing_mr2s_result())
+    mr2s_result = dnc_results.get(CLUSTER_DNC_STRATEGY, _missing_mr2s_result())
     result = PosterTrialResult(
         raw_sa=algorithm_results["raw_sa"],
         global_result=algorithm_results["global"],
