@@ -16,7 +16,6 @@ def _embedding_estimate_with_status(bqm: Any) -> tuple[EmbeddingEstimate | None,
     try:
         return estimate_required_qubits(bqm), True, None
     except RuntimeError as exc:
-        # embedding 실패는 fallback/partition 판단에 필요한 진단값으로 남긴다.
         return None, False, str(exc)
 
 
@@ -31,7 +30,6 @@ def _estimate_physical_qubits_with_status(bqm: Any) -> tuple[float, bool, str | 
 
 
 def _estimate_physical_qubits(bqm: Any) -> float:
-    """Return physical qubits for embeddable BQMs; NaN when embedding fails."""
     physical_qubits, _, _ = _estimate_physical_qubits_with_status(bqm)
     return physical_qubits
 
@@ -64,7 +62,6 @@ def _can_recurse_partition(parent: Any, sub_graphs: list[Any]) -> bool:
     if not sub_graphs:
         return False
 
-    # 자기 자신과 같은 크기의 subgraph가 나오면 재귀 분할이 진행되지 않는다.
     parent_edge_count = len(parent.edges)
     return all(
         0 < len(sub_graph.edges) < parent_edge_count
@@ -73,7 +70,6 @@ def _can_recurse_partition(parent: Any, sub_graphs: list[Any]) -> bool:
 
 
 def _partition_with_target_k(face_cycle: Any, graph: Any, target_k: int) -> Any:
-    # face_cycle 객체의 target_k를 임시로 바꾸고 반드시 원래 값으로 복구한다.
     previous_target_k = face_cycle.target_k
     face_cycle.target_k = target_k
     try:
@@ -90,7 +86,6 @@ def _summarize_partition_attempt(
     accepted: bool,
 ) -> dict[str, Any]:
     sub_graphs = result.sub_graphs
-    # 실패한 embedding은 NaN으로 보존하고, 합산 통계는 유한값만 사용한다.
     finite_physical = [
         probe["physical_qubits"]
         for probe in probes
@@ -114,9 +109,24 @@ def _summarize_partition_attempt(
     }
 
 
-class DncPartitionStrategy:
-    """Find an embeddable DnC partition by varying face-cycle ``target_k``."""
+def _physical_qubit_stats(values: list[float]) -> dict[str, float]:
+    finite_values = [value for value in values if not np.isnan(value)]
+    if not finite_values:
+        return {
+            "total": float("nan"),
+            "max": float("nan"),
+            "mean": float("nan"),
+            "min": float("nan"),
+        }
+    return {
+        "total": float(sum(finite_values)),
+        "max": float(max(finite_values)),
+        "mean": float(np.mean(finite_values)),
+        "min": float(min(finite_values)),
+    }
 
+
+class DncPartitionStrategy:
     def __init__(self) -> None:
         self.last_diagnostics: dict[str, Any] = {}
         self.last_elapsed_seconds: float = 0.0
@@ -147,7 +157,6 @@ class DncPartitionStrategy:
         face_cycle: Any,
         graph: Any,
     ) -> tuple[EmbeddableGraphPartition, dict[str, Any]]:
-        # 먼저 전체 그래프 QUBO가 하드웨어 embedding 가능한지 확인한다.
         whole_graph_probe, whole_graph_estimate = self.probe_embedding_with_estimate(
             mr2s_solver,
             graph,
@@ -172,7 +181,6 @@ class DncPartitionStrategy:
         )
         diagnostics.update(partition_diagnostics)
         if partition is None:
-            # partition을 찾지 못하면 solver가 기존 경로로 처리하도록 전체 그래프를 반환한다.
             diagnostics["selected_reason"] = "fallback_whole_graph"
             diagnostics["selected_probes"] = [whole_graph_probe]
             return EmbeddableGraphPartition(
@@ -195,7 +203,6 @@ class DncPartitionStrategy:
         attempts: list[dict[str, Any]] = []
 
         while left <= right:
-            # 가능한 partition 중 embedding이 되는 가장 작은 target_k를 찾는다.
             target_k = (left + right) // 2
             result = self.partition_with_target_k(face_cycle, graph, target_k)
             sub_graphs = result.sub_graphs
@@ -287,8 +294,6 @@ class DncPartitionStrategy:
 
 
 class TimedPartitionStrategy:
-    """Record elapsed time for any mr2s-module DnC partition strategy."""
-
     def __init__(self, strategy: Any) -> None:
         self.strategy = strategy
         self.last_elapsed_seconds = 0.0
@@ -298,7 +303,6 @@ class TimedPartitionStrategy:
         try:
             return self.strategy.run(graph)
         finally:
-            # module-provided strategies do not expose timing, so the wrapper keeps it.
             self.last_elapsed_seconds = time.monotonic() - start
 
 

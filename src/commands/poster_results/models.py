@@ -6,23 +6,31 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BasicSolverResult:
     apsp: float
     flow: float
+    directed_edges: list[tuple[int, int]] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "BasicSolverResult":
-        return cls(apsp=data["apsp"], flow=data["flow"])
+        return cls(
+            apsp=data["apsp"],
+            flow=data["flow"],
+            directed_edges=data.get("directed_edges"),
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "apsp": self.apsp,
             "flow": self.flow,
         }
+        if self.directed_edges is not None:
+            data["directed_edges"] = self.directed_edges
+        return data
 
 
-@dataclass
+@dataclass(kw_only=True)
 class GlobalSolverResult(BasicSolverResult):
     qvars: float
     subgraph_size: float
@@ -36,19 +44,23 @@ class GlobalSolverResult(BasicSolverResult):
             qvars=data["qvars"],
             subgraph_size=data["sg"],
             physical_total=data["pt"],
+            directed_edges=data.get("directed_edges"),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "apsp": self.apsp,
             "flow": self.flow,
             "qvars": self.qvars,
             "sg": self.subgraph_size,
             "pt": self.physical_total,
         }
+        if self.directed_edges is not None:
+            data["directed_edges"] = self.directed_edges
+        return data
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Mr2sSolverResult(BasicSolverResult):
     qvars: float
     subgraph_size: float
@@ -70,10 +82,11 @@ class Mr2sSolverResult(BasicSolverResult):
             phys_mean=data["phys_mean"],
             phys_min=data["phys_min"],
             partition=data.get("partition", {}),
+            directed_edges=data.get("directed_edges"),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "apsp": self.apsp,
             "flow": self.flow,
             "qvars": self.qvars,
@@ -84,9 +97,12 @@ class Mr2sSolverResult(BasicSolverResult):
             "phys_min": self.phys_min,
             "partition": self.partition,
         }
+        if self.directed_edges is not None:
+            data["directed_edges"] = self.directed_edges
+        return data
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RandomBaselineResult(BasicSolverResult):
     sample_count: int | None = None
     strong_sample_count: int | None = None
@@ -98,6 +114,7 @@ class RandomBaselineResult(BasicSolverResult):
             flow=data["flow"],
             sample_count=data.get("sample_count"),
             strong_sample_count=data.get("strong_sample_count"),
+            directed_edges=data.get("directed_edges"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -109,10 +126,11 @@ class RandomBaselineResult(BasicSolverResult):
             data["sample_count"] = self.sample_count
         if self.strong_sample_count is not None:
             data["strong_sample_count"] = self.strong_sample_count
+        if self.directed_edges is not None:
+            data["directed_edges"] = self.directed_edges
         return data
 
     def normalized(self) -> "RandomBaselineResult":
-        # legacy cache는 sample이 없을 때 0점처럼 저장된 경우가 있어 unavailable로 보정한다.
         missing_legacy_sample = (
             self.sample_count is None
             and self.apsp == 0
@@ -124,6 +142,7 @@ class RandomBaselineResult(BasicSolverResult):
                 flow=float("nan"),
                 sample_count=0,
                 strong_sample_count=self.strong_sample_count,
+                directed_edges=self.directed_edges,
             )
         return self
 
@@ -147,7 +166,7 @@ class TrialTimings:
         return dict(self.values)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class PosterTrialResult:
     raw_sa: BasicSolverResult
     global_result: GlobalSolverResult
@@ -173,7 +192,6 @@ class PosterTrialResult:
             for name, result in data.get("mr2s_variants", {}).items()
         }
         if not dnc_strategies:
-            # 기존 cache/result에는 strategy별 결과가 없으므로 poster 전략으로 보정한다.
             dnc_strategies["poster"] = mr2s
         return cls(
             raw_sa=BasicSolverResult.from_dict(data["raw_sa"]),
@@ -209,7 +227,7 @@ class PosterTrialResult:
         }
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Mr2sTrialResult:
     mr2s: Mr2sSolverResult
     timings: TrialTimings
@@ -327,7 +345,7 @@ class TimingResultSeries:
         }
 
 
-@dataclass
+@dataclass(kw_only=True)
 class PosterResultsSummary:
     sizes: list[int]
     mr2s: Mr2sResultSeries = field(default_factory=Mr2sResultSeries)

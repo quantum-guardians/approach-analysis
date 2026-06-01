@@ -18,7 +18,7 @@ Compare n-hop counts and SC ratio across multiple graphs::
 
 import argparse
 
-from src.commands import analyse, nhop_connectivity, face_k_analysis, poster_results
+from src.commands import analyse, nhop_connectivity, face_k_analysis, poster_results, poster_batch
 
 
 def main() -> None:
@@ -33,6 +33,7 @@ def main() -> None:
     nhop_connectivity.register_parser(subparsers)
     face_k_analysis.register_parser(subparsers)
     poster_results.register_parser(subparsers)
+    poster_batch.register_parser(subparsers)
 
     args = parser.parse_args()
     args.func(args)
@@ -40,4 +41,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

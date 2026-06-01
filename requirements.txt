@@ -4,3 +4,5 @@ numpy>=1.24
 scipy>=1.10
 pytest>=7.0
 mr2s-module==0.0.8
+redis>=5.0
+boto3>=1.34
