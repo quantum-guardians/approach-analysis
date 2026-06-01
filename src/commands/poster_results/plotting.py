@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from src.visualizer import (
     plot_apsp_reduction,
@@ -12,9 +13,8 @@ from src.visualizer import (
 )
 
 
-def _plot_results(results: dict, output_dir: str) -> None:
+def _plot_results(results: dict[str, Any], output_dir: str) -> None:
     sizes = results["sizes"]
-    # solver별 normalized APSP를 한 그래프에 모아 poster용 비교 그림을 만든다.
     plot_apsp_reduction(
         sizes,
         results["random"]["apsp"],
@@ -25,7 +25,6 @@ def _plot_results(results: dict, output_dir: str) -> None:
         dnc_strategies=results.get("dnc_strategies"),
         save_path=os.path.join(output_dir, "apsp_reduction.png"),
     )
-    # 방향 선택이 각 vertex의 in/out 균형을 얼마나 안정적으로 유지하는지 비교한다.
     plot_flow_stability(
         sizes,
         results["random"]["flow"],
@@ -36,7 +35,6 @@ def _plot_results(results: dict, output_dir: str) -> None:
         dnc_strategies=results.get("dnc_strategies"),
         save_path=os.path.join(output_dir, "flow_stability.png"),
     )
-    # global QUBO와 clustered QUBO의 변수 수 및 physical qubit 추정치를 비교한다.
     plot_preprocessing_scalability(
         sizes,
         results["global"]["qubo_vars"],
@@ -53,7 +51,6 @@ def _plot_results(results: dict, output_dir: str) -> None:
         save_path=os.path.join(output_dir, "scalability.png"),
     )
     if "timings" in results:
-        # trial별 timing 평균을 size 축으로 모아 stage별 실행 시간을 비교한다.
         timings = results["timings"]
         plot_spent_time(
             sizes,

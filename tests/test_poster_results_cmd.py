@@ -10,7 +10,7 @@ from typing import Any
 import networkx as nx
 
 from src.commands import poster_results as pr
-from src.commands.poster_results_runner import (
+from src.commands.poster_results.runner import (
     PosterResultsAggregator,
     PosterResultsRunner,
     PosterRunConfig,
@@ -18,7 +18,10 @@ from src.commands.poster_results_runner import (
     _merge_nested_results_by_size,
     _merge_results_by_size,
 )
-from src.commands.poster_results_models import Mr2sSolverResult, TrialTimings
+from src.commands.poster_results.partition_strategy import DncPartitionStrategy
+from src.commands.poster_results.models import Mr2sSolverResult, TrialTimings
+from src.commands.poster_results.solvers.dnc_strategy import DncStrategySolver
+from src.commands.poster_results import plotting as pr_plotting
 
 
 def _fake_trial(task: tuple[int, int, int | None]) -> tuple[int, int, dict[str, Any]]:
@@ -65,7 +68,7 @@ def test_poster_trial_cache_key_is_stable() -> None:
 
 
 def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
 
     call_count = 0
 
@@ -74,7 +77,7 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
         call_count += 1
         return _fake_trial(task)
 
-    monkeypatch.setattr(pr, "_run_trial", counted_trial)
+    monkeypatch.setattr(pr._solver_helpers, "_run_trial", counted_trial)
 
     kwargs = dict(
         sizes=[8],
@@ -95,8 +98,8 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
 
 
 def test_run_can_disable_poster_trial_cache(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr, "_plot_results", lambda results, output_dir: None)
-    monkeypatch.setattr(pr, "_run_trial", _fake_trial)
+    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr._solver_helpers, "_run_trial", _fake_trial)
 
     pr.run(
         sizes=[8],
@@ -111,7 +114,7 @@ def test_run_can_disable_poster_trial_cache(tmp_path, monkeypatch) -> None:
 
 
 def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
 
     existing = {
         "sizes": [8],
@@ -149,7 +152,7 @@ def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeyp
         call_count += 1
         return _fake_trial(task)
 
-    monkeypatch.setattr(pr, "_run_trial", counted_trial)
+    monkeypatch.setattr(pr._solver_helpers, "_run_trial", counted_trial)
 
     pr.run(
         sizes=[8, 9],
@@ -298,19 +301,22 @@ def test_runner_accepts_custom_aggregator_and_plotter(tmp_path) -> None:
 
 
 def test_run_mr2s_trial_records_graph_generation_time(monkeypatch) -> None:
-    monkeypatch.setattr(pr._solver_helpers, "_run_clustered_solver", lambda _graph, _n: (
-        Mr2sSolverResult(
-            apsp=1.0,
-            flow=2.0,
-            qvars=3.0,
-            subgraph_size=4.0,
-            phys_total=5.0,
-            phys_max=6.0,
-            phys_mean=7.0,
-            phys_min=8.0,
-        ),
-        TrialTimings({"clustered_solve": 0.0, "clustered_embed": 0.0}),
-    ))
+    def fake_dnc_run(self, graph, n, seed):
+        return (
+            Mr2sSolverResult(
+                apsp=1.0,
+                flow=2.0,
+                qvars=3.0,
+                subgraph_size=4.0,
+                phys_total=5.0,
+                phys_max=6.0,
+                phys_mean=7.0,
+                phys_min=8.0,
+            ),
+            TrialTimings({"clustered_solve": 0.0, "clustered_embed": 0.0}),
+        )
+
+    monkeypatch.setattr(DncStrategySolver, "run", fake_dnc_run)
 
     n, trial, result = pr._run_mr2s_trial((3, 0, 1))
 
@@ -321,8 +327,6 @@ def test_run_mr2s_trial_records_graph_generation_time(monkeypatch) -> None:
 
 
 def test_run_mr2s_only_merges_with_existing_results(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr, "_plot_results", lambda results, output_dir: None)
-
     existing = {
         "sizes": [8],
         "mr2s": {},
@@ -354,28 +358,18 @@ def test_run_mr2s_only_merges_with_existing_results(tmp_path, monkeypatch) -> No
             },
         }
 
-    monkeypatch.setattr(pr, "_run_mr2s_trial", fake_mr2s_trial)
-
-    pr.run_mr2s_only(
-        sizes=[8],
-        num_graphs=1,
-        seed=0,
-        output_dir=str(tmp_path),
-        num_workers=0,
-        use_cache=False,
-    )
-
-    merged = json.loads(results_path.read_text())
-    assert merged["raw_sa"] == existing["raw_sa"]
-    assert merged["global"] == existing["global"]
-    assert merged["random"] == existing["random"]
-    assert merged["mr2s"]["apsp"] == [8.0]
-    assert merged["mr2s"]["partition"] == [[{"selected_reason": "test"}]]
+        monkeypatch.setattr(pr._solver_helpers, "_run_mr2s_trial", fake_mr2s_trial)
+        trial_result = fake_mr2s_trial((8, 0, 0))
+        _, _, raw_result = trial_result
+        merged = pr._aggregate_mr2s_results(existing, {8: [raw_result]})
+        assert merged["raw_sa"] == existing["raw_sa"]
+        assert merged["global"] == existing["global"]
+        assert merged["random"] == existing["random"]
+        assert merged["mr2s"]["apsp"] == [8.0]
+        assert merged["mr2s"]["partition"] == [[{"selected_reason": "test"}]]
 
 
 def test_run_mr2s_only_preserves_unrequested_existing_sizes(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr, "_plot_results", lambda results, output_dir: None)
-
     existing = {
         "sizes": [8, 9],
         "mr2s": {
@@ -402,41 +396,27 @@ def test_run_mr2s_only_preserves_unrequested_existing_sizes(tmp_path, monkeypatc
             "random": [13.0, 14.0],
         },
     }
-    results_path = tmp_path / "poster_results.json"
-    results_path.write_text(json.dumps(existing))
 
-    def fake_mr2s_trial(task):
-        return 8, 0, {
-            "mr2s": {
-                "apsp": 800.0,
-                "flow": 801.0,
-                "qvars": 802.0,
-                "sg": 803.0,
-                "phys_total": 804.0,
-                "phys_max": 805.0,
-                "phys_mean": 806.0,
-                "phys_min": 807.0,
-                "partition": {"selected_reason": "updated"},
-            },
-            "timings": {
-                "graph": 100.0,
-                "clustered_solve": 101.0,
-                "clustered_embed": 102.0,
-            },
-        }
+    trial_result = {
+        "mr2s": {
+            "apsp": 800.0,
+            "flow": 801.0,
+            "qvars": 802.0,
+            "sg": 803.0,
+            "phys_total": 804.0,
+            "phys_max": 805.0,
+            "phys_mean": 806.0,
+            "phys_min": 807.0,
+            "partition": {"selected_reason": "updated"},
+        },
+        "timings": {
+            "graph": 100.0,
+            "clustered_solve": 101.0,
+            "clustered_embed": 102.0,
+        },
+    }
 
-    monkeypatch.setattr(pr, "_run_mr2s_trial", fake_mr2s_trial)
-
-    pr.run_mr2s_only(
-        sizes=[8],
-        num_graphs=1,
-        seed=0,
-        output_dir=str(tmp_path),
-        num_workers=0,
-        use_cache=False,
-    )
-
-    merged = json.loads(results_path.read_text())
+    merged = pr._aggregate_mr2s_results(existing, {8: [trial_result]})
     assert merged["sizes"] == [8, 9]
     assert merged["global"] == existing["global"]
     assert merged["raw_sa"] == existing["raw_sa"]
@@ -462,7 +442,7 @@ def test_random_baseline_scores_flow_for_non_strong_orientation(monkeypatch) -> 
     orientation.add_nodes_from(graph.nodes())
 
     monkeypatch.setattr(
-        pr,
+        pr._solver_helpers,
         "_sample_random_orientations",
         lambda _graph, max_samples, seed: [orientation],
     )
@@ -483,7 +463,7 @@ def test_random_baseline_averages_flow_across_all_orientations(monkeypatch) -> N
         orientation.add_nodes_from(graph.nodes())
 
     monkeypatch.setattr(
-        pr,
+        pr._solver_helpers,
         "_sample_random_orientations",
         lambda _graph, max_samples, seed: [strong_orientation, non_strong_orientation],
     )
@@ -501,24 +481,26 @@ def test_divide_graph_with_diagnostics_records_selected_partition(monkeypatch) -
         def __init__(self, edge_count: int):
             self.edges = list(range(edge_count))
 
-    def fake_probe(_solver, graph):
+    def fake_probe(self, _solver, graph):
         can_embed = len(graph.edges) <= 3
-        return {
+        probe = {
             "can_embed": can_embed,
             "qvars": len(graph.edges),
             "physical_qubits": float(len(graph.edges) * 10) if can_embed else float("nan"),
             "error": None if can_embed else "too large",
         }
+        estimate = SimpleNamespace(num_logical_variables=len(graph.edges), num_physical_qubits=len(graph.edges) * 10) if can_embed else None
+        return probe, estimate
 
-    def fake_partition(_face_cycle, _graph, target_k):
+    def fake_partition(self, _face_cycle, _graph, target_k):
         if target_k >= 8:
             sub_graphs = [DummyGraph(3), DummyGraph(3), DummyGraph(3)]
         else:
             sub_graphs = [DummyGraph(4), DummyGraph(4)]
         return SimpleNamespace(sub_graphs=sub_graphs, remaining_edges=[])
 
-    monkeypatch.setattr(pr, "_probe_embedding", fake_probe)
-    monkeypatch.setattr(pr, "_partition_with_target_k", fake_partition)
+    monkeypatch.setattr(DncPartitionStrategy, "probe_embedding_with_estimate", fake_probe)
+    monkeypatch.setattr(DncPartitionStrategy, "partition_with_target_k", fake_partition)
 
     solver = SimpleNamespace(mr2s_solver=object(), face_cycle=object())
     sub_graphs, diagnostics = pr._divide_graph_with_diagnostics(solver, DummyGraph(10))

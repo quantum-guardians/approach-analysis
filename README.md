@@ -24,7 +24,7 @@ pip install -r requirements.txt
 
 ## 사용법 (Usage)
 
-`main.py`는 `analyse`, `nhop-connectivity`, `face-k-analysis`, `poster-results` 서브 커맨드를 제공합니다.
+`main.py`는 `analyse`, `nhop-connectivity`, `face-k-analysis`, `poster-results`, `poster-batch` 서브 커맨드를 제공합니다.
 
 ### `analyse` – 단일 그래프의 APSP·n-hop 상관관계 분석
 
@@ -192,6 +192,108 @@ embed timing은 plot에는 넣지 않지만 JSON의 `timings` 섹션에는 보�
 - `flow_stability.png` – Random / Raw SA / Global / MR2S 변형 / DnC strategy별 flow imbalance 비교
 - `scalability.png` – Global QUBO와 DnC strategy별 QUBO 변수·subgraph·physical qubit 비교
 - `spent_time.png` – graph generation, Raw SA, Global solve, MR2S 변형, DnC strategy별 solve time, random baseline 비교
+
+---
+
+### `poster-batch` – AWS Batch 기반 poster result 분산 처리
+
+`poster-batch`는 poster result 계산을 그래프 trial과 알고리즘 단위로 나누어 Redis queue에 넣고,
+AWS Batch worker가 task를 처리해 S3에 JSON chunk로 저장합니다. 마지막으로 S3 chunk를 모아
+기존 poster visualization 파일(`poster_results.json`, `apsp_reduction.png`, `flow_stability.png`,
+`scalability.png`, `spent_time.png`)을 생성합니다.
+
+Queue와 Store는 추상화되어 있습니다. Task maker는 `Queue.enqueue()`으로 task를 넣고,
+worker는 `Queue.subscribe()`로 polling하며 task handler를 호출합니다. 결과 저장은 `Store.put_json()`과
+`Store.iter_json()`을 통해 처리하므로, 현재 구현인 Redis/S3 외 다른 queue/store로 바꾸기 쉽습니다.
+Batch 구현은 `src/commands/poster_batch/` 패키지에 기능별로 나뉘어 있습니다:
+`schema.py`는 task schema, `queue.py`는 queue 구현, `store.py`는 저장소 구현, `tasks.py`는 task routing,
+`collect.py`는 결과 수집, `cli.py`는 CLI adapter만 담당합니다.
+
+각 Redis task에는 `problem: "poster-results"` tag가 포함됩니다. Worker는 이 값을 보고 poster result
+handler로 라우팅하므로, 이후 다른 문제 유형을 같은 queue/worker 구조에 추가할 수 있습니다.
+
+필수/선택 환경 변수:
+
+| 변수 | 설명 |
+|---|---|
+| `POSTER_REDIS_URL` | Redis 연결 URL. 기본값 `redis://localhost:6379/0` |
+| `POSTER_BATCH_QUEUE` | Redis queue 이름. 기본값 `poster-results` |
+| `POSTER_S3_BUCKET` | 결과 chunk를 저장할 S3 bucket |
+| `POSTER_S3_PREFIX` | 결과 chunk prefix. 기본값 `poster-batch` |
+| `AWS_REGION` / `AWS_DEFAULT_REGION` | AWS SDK region 설정 |
+
+Task 생성:
+
+```bash
+python main.py poster-batch enqueue \
+    --sizes 100 200 300 400 500 \
+    --num-graphs 5 \
+    --seed 42 \
+    --s3-prefix poster/final-v1
+```
+
+Task maker Docker image:
+
+```bash
+docker build -f Dockerfile.task-maker -t approach-analysis-poster-task-maker .
+
+docker run --rm \
+    -e POSTER_REDIS_URL="$POSTER_REDIS_URL" \
+    approach-analysis-poster-task-maker \
+    --sizes 100 200 300 400 500 \
+    --num-graphs 5 \
+    --seed 42 \
+    --s3-prefix poster/final-v1
+```
+
+AWS Batch worker command 예시:
+
+```bash
+python main.py poster-batch worker \
+    --queue poster-results \
+    --s3-bucket "$POSTER_S3_BUCKET" \
+    --max-tasks 1
+```
+
+Worker Docker image:
+
+```bash
+docker build -f Dockerfile.worker -t approach-analysis-poster-worker .
+
+docker run --rm \
+    -e POSTER_REDIS_URL="$POSTER_REDIS_URL" \
+    -e POSTER_S3_BUCKET="$POSTER_S3_BUCKET" \
+    -e AWS_REGION="$AWS_REGION" \
+    approach-analysis-poster-worker \
+    --queue poster-results \
+    --max-tasks 1
+```
+
+`--max-tasks 1`을 사용하면 AWS Batch array job이나 fleet에서 각 job이 작은 task 하나를 처리하고 종료합니다.
+값을 생략하면 worker가 queue가 빌 때까지 계속 처리합니다.
+
+S3 결과 수집 및 visualization 생성:
+
+```bash
+python main.py poster-batch collect \
+    --sizes 100 200 300 400 500 \
+    --num-graphs 5 \
+    --s3-bucket "$POSTER_S3_BUCKET" \
+    --s3-prefix poster/final-v1 \
+    --output-dir results/poster_batch_final
+```
+
+S3 chunk key 구조:
+
+```text
+{prefix}/chunks/problem=poster-results/algorithm={algorithm}/n={n}/trial={trial}/seed={seed}/{task_id}.json
+```
+
+각 task는 `raw_sa`, `global`, `mr2s`, `random`, `robbin_mr2s`, `iterated_local_search_mr2s`, `poster`, `embedding_aware`, `degeneracy_pruning` 중 하나의 알고리즘을 계산합니다.
+Enqueue 시 `--algorithms`로 계산할 알고리즘 subset을 지정할 수 있으며, collect 시에도 동일한 `--algorithms`를 지정해야 합니다.
+Worker 실패 시 task의 `max_attempts`까지 Redis queue에 다시 들어가며, 상태는
+`{queue}:status` Redis hash에 기록됩니다. `collect` 단계에서 누락된 chunk가 있으면
+`missing_tasks.json`을 쓰고 기본적으로 실패합니다. 부분 결과로 plot을 만들려면 `--allow-missing`을 사용합니다.
 
 ## 테스트 (Tests)
 

@@ -143,7 +143,13 @@ def _nx_to_mr2s_graph(nx_graph: nx.Graph) -> MR2SGraph:
         MR2SEdge(int(u), int(v), 1, directed=False)
         for u, v in nx_graph.edges()
     ]
-    return MR2SGraph(edges)
+    # mr2s-module 0.0.8 stores edges as a dict, while older call sites iterate
+    # ``graph.edges`` as Edge objects. Preserve both behaviours during the API shift.
+    class EdgeDict(dict):
+        def __iter__(self):
+            return iter(self.values())
+
+    return MR2SGraph(EdgeDict({edge.id: edge for edge in edges}))
 
 
 def _trial_cache_key(
