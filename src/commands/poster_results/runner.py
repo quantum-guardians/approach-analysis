@@ -7,6 +7,7 @@ import copy
 import json
 import multiprocessing
 import os
+import sys
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -20,6 +21,7 @@ from src.commands.poster_results.models import (
 from src.commands.poster_results.solvers.base import _mean_finite
 from src.commands.poster_results.solvers.mr2s_variant import MR2S_VARIANTS
 from src.commands.poster_results.solvers.dnc_strategy import DNC_STRATEGIES
+from src.logging_config import configure_worker_logging
 
 TrialResult = tuple[int, int, TrialPayload | dict[str, Any]]
 TrialTask = tuple[int, int, int | None, str | None]
@@ -148,12 +150,15 @@ class TrialScheduler:
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=num_workers,
             mp_context=self._process_pool_context(),
+            initializer=configure_worker_logging,
         ) as executor:
             futures = [executor.submit(worker, task) for task in tasks]
             for future in concurrent.futures.as_completed(futures):
                 yield future.result()
 
     def _process_pool_context(self) -> multiprocessing.context.BaseContext:
+        if sys.platform == "darwin":
+            return multiprocessing.get_context("spawn")
         if "fork" in multiprocessing.get_all_start_methods():
             return multiprocessing.get_context("fork")
         return multiprocessing.get_context()

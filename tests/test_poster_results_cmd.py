@@ -15,6 +15,7 @@ from src.commands.poster_results.runner import (
     PosterResultsRunner,
     PosterRunConfig,
     RESULT_SERIES_KEYS,
+    TrialScheduler,
     _merge_nested_results_by_size,
     _merge_results_by_size,
 )
@@ -139,6 +140,14 @@ def test_poster_trial_cache_key_is_stable() -> None:
         'poster-results-trial:{"n": 20, "seed": 42, '
         '"trial": 3, "version": 5}'
     )
+
+
+def test_trial_scheduler_uses_spawn_on_macos(monkeypatch) -> None:
+    monkeypatch.setattr("src.commands.poster_results.runner.sys.platform", "darwin")
+
+    context = TrialScheduler()._process_pool_context()
+
+    assert context.get_start_method() == "spawn"
 
 
 def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
@@ -657,3 +666,31 @@ def test_build_dnc_qubo_solver_sets_subgraph_processes_for_qa(monkeypatch) -> No
     solver_sa = dnc_strategy._build_dnc_qubo_solver(use_qa=False)
     assert solver_sa.subgraph_processes is None
 
+
+def test_dnc_strategy_empty_sample_failure_returns_nan(monkeypatch) -> None:
+    from src.commands.poster_results.solvers import dnc_strategy
+
+    class FailingSolver:
+        def run(self, _graph):
+            raise ValueError("min() iterable argument is empty")
+
+    monkeypatch.setattr(
+        dnc_strategy,
+        "_build_dnc_qubo_solver",
+        lambda use_qa: FailingSolver(),
+    )
+    monkeypatch.setattr(
+        dnc_strategy,
+        "_build_partition_strategy",
+        lambda strategy_name, solver: SimpleNamespace(),
+    )
+
+    graph = nx.cycle_graph(3)
+    result, timings = DncStrategySolver("embedding_aware").run(graph, n=3, seed=0)
+
+    assert math.isnan(result.apsp)
+    assert math.isnan(result.flow)
+    assert result.partition["selected_reason"] == "failed"
+    assert result.partition["error"] == "min() iterable argument is empty"
+    assert timings.values["clustered_solve"] == 0.0
+    assert timings.values["clustered_embed"] >= 0.0

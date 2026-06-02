@@ -137,7 +137,7 @@ python main.py face-k-analysis \
 ### `poster-results` – MR2S poster solver 비교
 
 Raw SA, Global QUBO, MR2S 변형 solver, DnC MR2S, random baseline을 같은 Delaunay 그래프에서 비교합니다.
-DnC MR2S는 `mr2s-module==0.1.0`의 `graph_partition_strategy` hook을 사용하며,
+DnC MR2S는 `mr2s-module==0.1.2`의 `graph_partition_strategy` hook을 사용하며,
 현재 결과에는 다음 MR2S 변형과 DnC partition strategy가 같은 solver 비교 그래프 안에 함께 표시됩니다.
 
 | MR2S variant | 설명 |

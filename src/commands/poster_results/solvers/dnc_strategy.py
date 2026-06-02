@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import logging
 from typing import Any
 
 import networkx as nx
@@ -30,6 +31,7 @@ from mr2s_module.solver.dnc_graph_partition_strategy import (
 DNC_STRATEGIES = ["embedding_aware"]
 CLUSTER_DNC_STRATEGY = "embedding_aware"
 QA_DNC_STRATEGIES = {"embedding_aware"}
+logger = logging.getLogger(__name__)
 
 
 def _build_dnc_qubo_solver(
@@ -119,7 +121,13 @@ class DncStrategySolver(BaseSolver):
 
         try:
             sol_cls = solver_cls.run(graph_cls)
-        except RuntimeError as exc:
+        except (RuntimeError, ValueError) as exc:
+            logger.warning(
+                "DnC strategy %s failed for n=%s: %s",
+                self.strategy_name,
+                n,
+                exc,
+            )
             elapsed = time.monotonic() - start
             timings.values[f"dnc_{self.strategy_name}_solve"] = 0.0
             timings.values[f"dnc_{self.strategy_name}_embed"] = elapsed
