@@ -1,0 +1,3496 @@
+{
+  "sizes": [
+    100,
+    200,
+    300,
+    400,
+    500
+  ],
+  "mr2s": {
+    "apsp": [
+      5.461414141414142,
+      7.1814698492462306,
+      8.385496098104795,
+      9.564482038429405,
+      10.247532398129593
+    ],
+    "flow": [
+      110.66666666666667,
+      185.0,
+      294.0,
+      428.0,
+      505.3333333333333
+    ],
+    "qubo_vars": [
+      284.0,
+      533.0,
+      813.6666666666666,
+      1063.0,
+      1346.3333333333333
+    ],
+    "subgraph_size": [
+      284.0,
+      263.0,
+      347.3333333333333,
+      319.6666666666667,
+      364.6666666666667
+    ],
+    "phys_total": [
+      2792.0,
+      4357.5,
+      7628.333333333333,
+      9718.333333333334,
+      12819.666666666666
+    ],
+    "phys_max": [
+      2792.0,
+      2455.0,
+      3496.3333333333335,
+      3027.3333333333335,
+      3601.3333333333335
+    ],
+    "phys_mean": [
+      2792.0,
+      1263.7916666666665,
+      2173.1666666666665,
+      1407.9623015873015,
+      2185.825396825397
+    ],
+    "phys_min": [
+      2792.0,
+      49.5,
+      1324.3333333333333,
+      2.0,
+      2.0
+    ],
+    "partition": [
+      [
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": null,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 286,
+              "physical_qubits": 2952.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            286
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": null,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 280,
+              "physical_qubits": 2494.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            280
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": null,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 286,
+              "physical_qubits": 2930.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            286
+          ],
+          "qubo_backend": "qa"
+        }
+      ],
+      [
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "failed",
+          "error": "min() iterable argument is empty"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 2,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 234,
+              "physical_qubits": 1767.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 269,
+              "physical_qubits": 2692.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 14,
+              "physical_qubits": 32.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 17,
+              "physical_qubits": 38.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            267,
+            298,
+            3,
+            19,
+            25,
+            3
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 2,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 257,
+              "physical_qubits": 2218.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 251,
+              "physical_qubits": 1901.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 24,
+              "physical_qubits": 67.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            292,
+            283,
+            3,
+            33,
+            3,
+            3
+          ],
+          "qubo_backend": "qa"
+        }
+      ],
+      [
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 4,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 186,
+              "physical_qubits": 1663.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 202,
+              "physical_qubits": 1570.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 175,
+              "physical_qubits": 1510.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 209,
+              "physical_qubits": 1917.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 3,
+              "physical_qubits": 3.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 16,
+              "physical_qubits": 32.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 3,
+              "physical_qubits": 3.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            213,
+            227,
+            197,
+            238,
+            9,
+            3,
+            26,
+            3,
+            3,
+            3,
+            7,
+            9,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 2,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 397,
+              "physical_qubits": 3619.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 405,
+              "physical_qubits": 4391.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 11,
+              "physical_qubits": 20.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 3,
+              "physical_qubits": 3.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            440,
+            3,
+            444,
+            19,
+            9,
+            7
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 2,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 399,
+              "physical_qubits": 3969.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 428,
+              "physical_qubits": 4181.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            441,
+            469,
+            3,
+            3,
+            3,
+            3,
+            3
+          ],
+          "qubo_backend": "qa"
+        }
+      ],
+      [
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 4,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 263,
+              "physical_qubits": 2416.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 273,
+              "physical_qubits": 2264.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 243,
+              "physical_qubits": 2295.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 249,
+              "physical_qubits": 2191.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 4,
+              "physical_qubits": 4.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 3,
+              "physical_qubits": 3.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            304,
+            318,
+            276,
+            282,
+            11,
+            3,
+            3,
+            3,
+            3,
+            3,
+            5,
+            7,
+            9,
+            7,
+            3,
+            3,
+            3,
+            3,
+            5,
+            5,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            5
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 4,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 253,
+              "physical_qubits": 1977.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 10,
+              "physical_qubits": 16.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 267,
+              "physical_qubits": 2380.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 249,
+              "physical_qubits": 2415.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 278,
+              "physical_qubits": 2566.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            287,
+            3,
+            5,
+            3,
+            3,
+            20,
+            312,
+            288,
+            5,
+            310,
+            3,
+            3,
+            3,
+            5,
+            7,
+            5,
+            3,
+            5,
+            3,
+            3,
+            3,
+            3
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 3,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 339,
+              "physical_qubits": 3279.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 330,
+              "physical_qubits": 3228.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 408,
+              "physical_qubits": 4100.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 5,
+              "physical_qubits": 6.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 5,
+              "physical_qubits": 5.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            372,
+            369,
+            3,
+            444,
+            3,
+            3,
+            3,
+            3,
+            7,
+            3,
+            5,
+            13,
+            3,
+            3,
+            10,
+            7
+          ],
+          "qubo_backend": "qa"
+        }
+      ],
+      [
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 4,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 327,
+              "physical_qubits": 3266.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 319,
+              "physical_qubits": 2502.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 363,
+              "physical_qubits": 3931.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 333,
+              "physical_qubits": 3529.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            3,
+            3,
+            3,
+            363,
+            7,
+            3,
+            3,
+            356,
+            405,
+            372,
+            3,
+            3,
+            5,
+            5,
+            3,
+            3,
+            5,
+            3,
+            5,
+            3,
+            3,
+            5,
+            5,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 4,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 346,
+              "physical_qubits": 2816.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 361,
+              "physical_qubits": 3374.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 311,
+              "physical_qubits": 2990.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 6,
+              "physical_qubits": 8.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 3,
+              "physical_qubits": 3.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 306,
+              "physical_qubits": 3128.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            392,
+            404,
+            5,
+            346,
+            12,
+            9,
+            5,
+            5,
+            3,
+            336,
+            3,
+            3,
+            3,
+            5,
+            3,
+            3,
+            3,
+            3,
+            5,
+            3,
+            5,
+            3,
+            7,
+            3,
+            5,
+            3,
+            5,
+            3,
+            5,
+            3
+          ],
+          "qubo_backend": "qa"
+        },
+        {
+          "strategy": "embedding_aware",
+          "selected_reason": "module_strategy",
+          "partition_target_k": 4,
+          "selected_probes": [
+            {
+              "can_embed": true,
+              "qvars": 327,
+              "physical_qubits": 2926.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 335,
+              "physical_qubits": 3462.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 370,
+              "physical_qubits": 3499.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 314,
+              "physical_qubits": 2997.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 12,
+              "physical_qubits": 22.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 2,
+              "physical_qubits": 2.0,
+              "error": null
+            },
+            {
+              "can_embed": true,
+              "qvars": 0,
+              "physical_qubits": 0.0,
+              "error": null
+            }
+          ],
+          "subgraph_edge_counts": [
+            357,
+            367,
+            3,
+            3,
+            5,
+            410,
+            5,
+            3,
+            3,
+            355,
+            18,
+            3,
+            5,
+            5,
+            5,
+            5,
+            3,
+            3,
+            5,
+            5,
+            3,
+            3,
+            7,
+            3
+          ],
+          "qubo_backend": "qa"
+        }
+      ]
+    ]
+  },
+  "global": {
+    "apsp": [
+      5.464747474747475,
+      7.265234505862646,
+      8.520078037904126,
+      9.814243943191313,
+      10.455512358049432
+    ],
+    "flow": [
+      48.0,
+      99.33333333333333,
+      148.66666666666666,
+      192.0,
+      245.33333333333334
+    ],
+    "qubo_vars": [
+      284.0,
+      582.0,
+      881.6666666666666,
+      1178.6666666666667,
+      1480.6666666666667
+    ],
+    "subgraph_size": [
+      284.0,
+      582.0,
+      881.6666666666666,
+      1178.6666666666667,
+      1480.6666666666667
+    ],
+    "phys_total": [
+      3007.6666666666665,
+      NaN,
+      NaN,
+      NaN,
+      NaN
+    ],
+    "phys_max": [],
+    "phys_mean": [],
+    "phys_min": []
+  },
+  "raw_sa": {
+    "apsp": [
+      5.131346801346801,
+      6.731742043551088,
+      7.847792642140469,
+      NaN,
+      NaN
+    ],
+    "flow": [
+      117.33333333333333,
+      232.66666666666666,
+      392.6666666666667,
+      756.0,
+      1368.0
+    ]
+  },
+  "random": {
+    "apsp": [
+      NaN,
+      NaN,
+      NaN,
+      NaN,
+      NaN
+    ],
+    "flow": [
+      575.1999999999999,
+      1170.0000000000002,
+      1764.6666666666667,
+      2358.6666666666665,
+      2943.1999999999994
+    ]
+  },
+  "timings": {
+    "graph": [
+      0.0035121253334485423,
+      0.00475418066647156,
+      0.0032379863332607783,
+      0.0038290696669112854,
+      0.010963582998859541
+    ],
+    "raw_sa": [
+      1075.0746098333336,
+      7209.160975528001,
+      24936.079457750002,
+      56745.74802715267,
+      101597.17261198633
+    ],
+    "global_solve": [
+      63.64002076399993,
+      147.02694844466654,
+      239.92574009766759,
+      314.998333278003,
+      429.463924430335
+    ],
+    "global_embed": [
+      85.1478527913335,
+      1021.2862041663333,
+      1033.3705484579998,
+      1042.2805950833354,
+      1064.357727763995
+    ],
+    "clustered_solve": [
+      43.4301442636679,
+      5.738099306511383,
+      11.89086045573155,
+      15.599407492671162,
+      16.924843572080135
+    ],
+    "clustered_embed": [
+      47.50958213899927,
+      1526.5939194181312,
+      2572.0621186802164,
+      3270.4227104477272,
+      4242.911968062942
+    ],
+    "dnc_poster_solve": [
+      NaN,
+      NaN,
+      NaN,
+      NaN,
+      NaN
+    ],
+    "dnc_poster_embed": [
+      NaN,
+      NaN,
+      NaN,
+      NaN,
+      NaN
+    ],
+    "dnc_embedding_aware_solve": [
+      43.4301442636679,
+      5.738099306511383,
+      11.89086045573155,
+      15.599407492671162,
+      16.924843572080135
+    ],
+    "dnc_embedding_aware_embed": [
+      47.50958213899927,
+      1526.5939194181312,
+      2572.0621186802164,
+      3270.4227104477272,
+      4242.911968062942
+    ],
+    "dnc_degeneracy_pruning_solve": [
+      NaN,
+      NaN,
+      NaN,
+      NaN,
+      NaN
+    ],
+    "dnc_degeneracy_pruning_embed": [
+      NaN,
+      NaN,
+      NaN,
+      NaN,
+      NaN
+    ],
+    "robbin_mr2s_solve": [
+      0.3530008056668521,
+      0.8392313473341346,
+      1.5703276393348158,
+      2.2396136250002505,
+      3.5431813469913322
+    ],
+    "robbin_mr2s_embed": [
+      0.25097352766654996,
+      0.4874155836672192,
+      0.7670896526663759,
+      0.8949012776671831,
+      1.2220646110072266
+    ],
+    "iterated_local_search_mr2s_solve": [
+      292.7746013469999,
+      3729.595694472333,
+      10358.188784541999,
+      38068.18446248567,
+      44861.83974500033
+    ],
+    "iterated_local_search_mr2s_embed": [
+      492.716435097,
+      3312.7024109166673,
+      12463.253352166668,
+      41111.44637683333,
+      48603.07065318034
+    ],
+    "random": [
+      0.006910375000188651,
+      0.01281647199842458,
+      0.025303236000278655,
+      0.03418656965368427,
+      0.027562333329115063
+    ]
+  },
+  "dnc_strategies": {
+    "embedding_aware": {
+      "apsp": [
+        5.461414141414142,
+        7.1814698492462306,
+        8.385496098104795,
+        9.564482038429405,
+        10.247532398129593
+      ],
+      "flow": [
+        110.66666666666667,
+        185.0,
+        294.0,
+        428.0,
+        505.3333333333333
+      ],
+      "qubo_vars": [
+        284.0,
+        533.0,
+        813.6666666666666,
+        1063.0,
+        1346.3333333333333
+      ],
+      "subgraph_size": [
+        284.0,
+        263.0,
+        347.3333333333333,
+        319.6666666666667,
+        364.6666666666667
+      ],
+      "phys_total": [
+        2792.0,
+        4357.5,
+        7628.333333333333,
+        9718.333333333334,
+        12819.666666666666
+      ],
+      "phys_max": [
+        2792.0,
+        2455.0,
+        3496.3333333333335,
+        3027.3333333333335,
+        3601.3333333333335
+      ],
+      "phys_mean": [
+        2792.0,
+        1263.7916666666665,
+        2173.1666666666665,
+        1407.9623015873015,
+        2185.825396825397
+      ],
+      "phys_min": [
+        2792.0,
+        49.5,
+        1324.3333333333333,
+        2.0,
+        2.0
+      ],
+      "partition": [
+        [
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": null,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 286,
+                "physical_qubits": 2952.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              286
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": null,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 280,
+                "physical_qubits": 2494.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              280
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": null,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 286,
+                "physical_qubits": 2930.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              286
+            ],
+            "qubo_backend": "qa"
+          }
+        ],
+        [
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "failed",
+            "error": "min() iterable argument is empty"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 2,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 234,
+                "physical_qubits": 1767.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 269,
+                "physical_qubits": 2692.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 14,
+                "physical_qubits": 32.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 17,
+                "physical_qubits": 38.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              267,
+              298,
+              3,
+              19,
+              25,
+              3
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 2,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 257,
+                "physical_qubits": 2218.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 251,
+                "physical_qubits": 1901.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 24,
+                "physical_qubits": 67.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              292,
+              283,
+              3,
+              33,
+              3,
+              3
+            ],
+            "qubo_backend": "qa"
+          }
+        ],
+        [
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 4,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 186,
+                "physical_qubits": 1663.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 202,
+                "physical_qubits": 1570.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 175,
+                "physical_qubits": 1510.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 209,
+                "physical_qubits": 1917.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 3,
+                "physical_qubits": 3.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 16,
+                "physical_qubits": 32.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 3,
+                "physical_qubits": 3.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              213,
+              227,
+              197,
+              238,
+              9,
+              3,
+              26,
+              3,
+              3,
+              3,
+              7,
+              9,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 2,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 397,
+                "physical_qubits": 3619.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 405,
+                "physical_qubits": 4391.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 11,
+                "physical_qubits": 20.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 3,
+                "physical_qubits": 3.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              440,
+              3,
+              444,
+              19,
+              9,
+              7
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 2,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 399,
+                "physical_qubits": 3969.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 428,
+                "physical_qubits": 4181.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              441,
+              469,
+              3,
+              3,
+              3,
+              3,
+              3
+            ],
+            "qubo_backend": "qa"
+          }
+        ],
+        [
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 4,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 263,
+                "physical_qubits": 2416.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 273,
+                "physical_qubits": 2264.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 243,
+                "physical_qubits": 2295.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 249,
+                "physical_qubits": 2191.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 4,
+                "physical_qubits": 4.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 3,
+                "physical_qubits": 3.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              304,
+              318,
+              276,
+              282,
+              11,
+              3,
+              3,
+              3,
+              3,
+              3,
+              5,
+              7,
+              9,
+              7,
+              3,
+              3,
+              3,
+              3,
+              5,
+              5,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              5
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 4,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 253,
+                "physical_qubits": 1977.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 10,
+                "physical_qubits": 16.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 267,
+                "physical_qubits": 2380.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 249,
+                "physical_qubits": 2415.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 278,
+                "physical_qubits": 2566.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              287,
+              3,
+              5,
+              3,
+              3,
+              20,
+              312,
+              288,
+              5,
+              310,
+              3,
+              3,
+              3,
+              5,
+              7,
+              5,
+              3,
+              5,
+              3,
+              3,
+              3,
+              3
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 3,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 339,
+                "physical_qubits": 3279.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 330,
+                "physical_qubits": 3228.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 408,
+                "physical_qubits": 4100.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 5,
+                "physical_qubits": 6.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 5,
+                "physical_qubits": 5.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              372,
+              369,
+              3,
+              444,
+              3,
+              3,
+              3,
+              3,
+              7,
+              3,
+              5,
+              13,
+              3,
+              3,
+              10,
+              7
+            ],
+            "qubo_backend": "qa"
+          }
+        ],
+        [
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 4,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 327,
+                "physical_qubits": 3266.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 319,
+                "physical_qubits": 2502.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 363,
+                "physical_qubits": 3931.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 333,
+                "physical_qubits": 3529.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              3,
+              3,
+              3,
+              363,
+              7,
+              3,
+              3,
+              356,
+              405,
+              372,
+              3,
+              3,
+              5,
+              5,
+              3,
+              3,
+              5,
+              3,
+              5,
+              3,
+              3,
+              5,
+              5,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 4,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 346,
+                "physical_qubits": 2816.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 361,
+                "physical_qubits": 3374.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 311,
+                "physical_qubits": 2990.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 6,
+                "physical_qubits": 8.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 3,
+                "physical_qubits": 3.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 306,
+                "physical_qubits": 3128.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              392,
+              404,
+              5,
+              346,
+              12,
+              9,
+              5,
+              5,
+              3,
+              336,
+              3,
+              3,
+              3,
+              5,
+              3,
+              3,
+              3,
+              3,
+              5,
+              3,
+              5,
+              3,
+              7,
+              3,
+              5,
+              3,
+              5,
+              3,
+              5,
+              3
+            ],
+            "qubo_backend": "qa"
+          },
+          {
+            "strategy": "embedding_aware",
+            "selected_reason": "module_strategy",
+            "partition_target_k": 4,
+            "selected_probes": [
+              {
+                "can_embed": true,
+                "qvars": 327,
+                "physical_qubits": 2926.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 335,
+                "physical_qubits": 3462.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 370,
+                "physical_qubits": 3499.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 314,
+                "physical_qubits": 2997.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 12,
+                "physical_qubits": 22.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 2,
+                "physical_qubits": 2.0,
+                "error": null
+              },
+              {
+                "can_embed": true,
+                "qvars": 0,
+                "physical_qubits": 0.0,
+                "error": null
+              }
+            ],
+            "subgraph_edge_counts": [
+              357,
+              367,
+              3,
+              3,
+              5,
+              410,
+              5,
+              3,
+              3,
+              355,
+              18,
+              3,
+              5,
+              5,
+              5,
+              5,
+              3,
+              3,
+              5,
+              5,
+              3,
+              3,
+              7,
+              3
+            ],
+            "qubo_backend": "qa"
+          }
+        ]
+      ]
+    }
+  },
+  "mr2s_variants": {
+    "robbin_mr2s": {
+      "apsp": [
+        15.2096632996633,
+        26.680469011725293,
+        38.13583797844668,
+        48.00383040935673,
+        65.82987174348698
+      ],
+      "flow": [
+        992.0,
+        1942.0,
+        3159.3333333333335,
+        4030.6666666666665,
+        5233.333333333333
+      ],
+      "qubo_vars": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "subgraph_size": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "phys_total": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "iterated_local_search_mr2s": {
+      "apsp": [
+        5.0999326599326595,
+        6.721021775544389,
+        7.876012634708286,
+        8.944367167919799,
+        9.517882431529726
+      ],
+      "flow": [
+        132.0,
+        283.3333333333333,
+        426.0,
+        566.6666666666666,
+        713.3333333333334
+      ],
+      "qubo_vars": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "subgraph_size": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "phys_total": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  }
+}
