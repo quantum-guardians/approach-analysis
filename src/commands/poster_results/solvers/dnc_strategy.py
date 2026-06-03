@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import logging
 from typing import Any
 
 import networkx as nx
@@ -27,15 +28,22 @@ from mr2s_module.solver.dnc_graph_partition_strategy import (
     EmbeddingAwareFaceCyclePartitionStrategy,
 )
 
-DNC_STRATEGIES = ["poster", "embedding_aware", "degeneracy_pruning"]
+DNC_STRATEGIES = ["embedding_aware"]
+CLUSTER_DNC_STRATEGY = "embedding_aware"
+QA_DNC_STRATEGIES = {"embedding_aware"}
+logger = logging.getLogger(__name__)
 
 
 def _build_dnc_qubo_solver(
     partition_strategy: Any | None = None,
+    use_qa: bool = False,
 ) -> DnCMr2sSolver:
     solver = DnCMr2sSolver(
-        mr2s_solver=_build_qubo_solver(),
+        mr2s_solver=_build_qubo_solver(use_qa=use_qa),
     )
+    if use_qa:
+        # D-Wave QA sampler has non-picklable lock objects, so we must run subgraph solves sequentially
+        solver.subgraph_processes = 1
     if partition_strategy is not None:
         partition_strategy.mr2s_solver = solver.mr2s_solver
         partition_strategy.face_cycle = solver.face_cycle
@@ -105,18 +113,25 @@ class DncStrategySolver(BaseSolver):
         del seed
         timings = TrialTimings()
         start = time.monotonic()
-        solver_cls = _build_dnc_qubo_solver()
+        uses_qa = self.strategy_name in QA_DNC_STRATEGIES
+        solver_cls = _build_dnc_qubo_solver(use_qa=uses_qa)
         partition_strategy = _build_partition_strategy(self.strategy_name, solver_cls)
         solver_cls.graph_partition_strategy = partition_strategy
         graph_cls = _nx_to_mr2s_graph(graph)
 
         try:
             sol_cls = solver_cls.run(graph_cls)
-        except RuntimeError as exc:
+        except (RuntimeError, ValueError) as exc:
+            logger.warning(
+                "DnC strategy %s failed for n=%s: %s",
+                self.strategy_name,
+                n,
+                exc,
+            )
             elapsed = time.monotonic() - start
             timings.values[f"dnc_{self.strategy_name}_solve"] = 0.0
             timings.values[f"dnc_{self.strategy_name}_embed"] = elapsed
-            if self.strategy_name == "poster":
+            if self.strategy_name == CLUSTER_DNC_STRATEGY:
                 timings.values["clustered_solve"] = 0.0
                 timings.values["clustered_embed"] = elapsed
             return self._failed_result(exc), timings
@@ -125,13 +140,14 @@ class DncStrategySolver(BaseSolver):
         partition_diagnostics = getattr(partition_strategy, "last_diagnostics", None)
         if not partition_diagnostics:
             partition_diagnostics = _diagnostics_from_solution(self.strategy_name, sol_cls)
+        partition_diagnostics["qubo_backend"] = "qa" if uses_qa else "sa"
 
         clustered_total = time.monotonic() - start
         clustered_embed = getattr(partition_strategy, "last_elapsed_seconds", 0.0)
         solve_time = max(0.0, clustered_total - clustered_embed)
         timings.values[f"dnc_{self.strategy_name}_solve"] = solve_time
         timings.values[f"dnc_{self.strategy_name}_embed"] = clustered_embed
-        if self.strategy_name == "poster":
+        if self.strategy_name == CLUSTER_DNC_STRATEGY:
             timings.values["clustered_solve"] = solve_time
             timings.values["clustered_embed"] = clustered_embed
 

@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 import pytest
 
 from src.visualizer import (
+    plot_apsp_reduction,
+    plot_flow_stability,
     plot_nhop_connectivity_comparison,
+    plot_preprocessing_scalability,
     plot_score_correlations,
     plot_spent_time,
 )
@@ -141,6 +144,21 @@ class TestPlotSpentTime:
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
+    def test_pads_short_series(self):
+        fig = plot_spent_time(
+            sizes=[100, 200],
+            graph_time=[0.1, 0.2],
+            raw_sa_time=[1.0],
+            global_solve_time=[],
+            global_embed_time=[],
+            clustered_solve_time=[],
+            clustered_embed_time=[],
+            random_time=[0.01, 0.02],
+            save_path=None,
+        )
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
     def test_saves_png(self, tmp_path):
         out = tmp_path / "spent_time.png"
         fig = plot_spent_time(
@@ -156,3 +174,47 @@ class TestPlotSpentTime:
         )
         assert out.exists()
         plt.close(fig)
+
+
+def test_poster_plots_pad_short_series():
+    sizes = [100, 200]
+
+    fig = plot_apsp_reduction(
+        sizes=sizes,
+        random_apsp=[5.0, 6.0],
+        raw_sa_apsp=[4.0],
+        global_apsp=[],
+        clustered_apsp=[2.0, 3.0],
+        mr2s_variants={"robbin_mr2s": {"apsp": []}},
+        dnc_strategies={"embedding_aware": {"apsp": [2.0]}},
+        save_path=None,
+    )
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+    fig = plot_flow_stability(
+        sizes=sizes,
+        random_flow=[5.0, 6.0],
+        raw_sa_flow=[4.0],
+        global_flow=[],
+        clustered_flow=[2.0, 3.0],
+        save_path=None,
+    )
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+    fig = plot_preprocessing_scalability(
+        sizes=sizes,
+        global_vars=[],
+        clustered_vars=[20.0],
+        global_sg=[],
+        clustered_sg=[10.0],
+        global_physical=[],
+        clustered_physical_total=[30.0],
+        clustered_physical_max=[],
+        clustered_physical_mean=[],
+        clustered_physical_min=[],
+        save_path=None,
+    )
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)

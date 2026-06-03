@@ -19,12 +19,19 @@ Compare n-hop counts and SC ratio across multiple graphs::
 import argparse
 
 from src.commands import analyse, nhop_connectivity, face_k_analysis, poster_results, poster_batch
+from src.logging_config import LOG_LEVELS, configure_logging
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Analyse n-hop approach on random graph orientations.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=LOG_LEVELS,
+        default="warning",
+        help="Configure Python logger verbosity.",
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = True
@@ -36,6 +43,7 @@ def main() -> None:
     poster_batch.register_parser(subparsers)
 
     args = parser.parse_args()
+    configure_logging(args.log_level, force=True)
     args.func(args)
 
 

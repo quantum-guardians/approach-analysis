@@ -14,15 +14,218 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
+PUBLICATION_COLORS = {
+    "ours": "#C43C39",
+    "ours_light": "#E06B65",
+    "traditional_raw": "#2F6CA3",
+    "traditional_robbin": "#5B8CC0",
+    "traditional_ils": "#1B4F72",
+    "global": "#4B5563",
+    "global_light": "#8A95A3",
+}
+PUBLICATION_MARKERS = {
+    "raw_sa": "o",
+    "robbin_mr2s": "s",
+    "iterated_local_search_mr2s": "^",
+    "embedding_aware": "D",
+    "global": "P",
+}
+SOLVER_DISPLAY_NAMES = {
+    "raw_sa": "Raw SA (Traditional)",
+    "robbin_mr2s": "Robbin (Traditional)",
+    "iterated_local_search_mr2s": "ILS (Traditional)",
+    "embedding_aware": "Cluster MR2S Solver (Ours)",
+    "global": "Global MR2S Solver",
+}
 DNC_STRATEGY_STYLES = {
-    "poster": ("D-", "red", "DnC poster"),
-    "embedding_aware": ("^-", "green", "DnC embedding-aware"),
+    "poster": ("D-", PUBLICATION_COLORS["ours_light"], "DnC poster"),
+    "embedding_aware": ("D-", PUBLICATION_COLORS["ours"], SOLVER_DISPLAY_NAMES["embedding_aware"]),
     "degeneracy_pruning": ("v-", "purple", "DnC degeneracy-pruning"),
 }
 MR2S_VARIANT_STYLES = {
-    "robbin_mr2s": ("P-", "brown", "Robbin + MR2S"),
-    "iterated_local_search_mr2s": ("*-", "teal", "ILS + MR2S"),
+    "robbin_mr2s": ("s-", PUBLICATION_COLORS["traditional_robbin"], SOLVER_DISPLAY_NAMES["robbin_mr2s"]),
+    "iterated_local_search_mr2s": ("^-", PUBLICATION_COLORS["traditional_ils"], SOLVER_DISPLAY_NAMES["iterated_local_search_mr2s"]),
 }
+
+
+def _aligned_values(sizes: Sequence[int], values: Sequence[float] | None) -> list[float]:
+    """Return a y-series that is safe to plot against ``sizes``."""
+    aligned = list(values or [])
+    target_len = len(sizes)
+    if len(aligned) < target_len:
+        aligned.extend([float("nan")] * (target_len - len(aligned)))
+    return aligned[:target_len]
+
+
+def _finite_values(series: Sequence[dict[str, Any]]) -> list[float]:
+    values = []
+    for item in series:
+        for value in item["y"]:
+            if isinstance(value, (int, float)) and np.isfinite(value):
+                values.append(float(value))
+    return values
+
+
+def _publication_style_axes(ax: plt.Axes) -> None:
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#6B7280")
+    ax.spines["bottom"].set_color("#6B7280")
+    ax.tick_params(axis="both", labelsize=10, colors="#374151", width=0.8)
+    ax.grid(True, color="#D1D5DB", linestyle="-", linewidth=0.7, alpha=0.45)
+    ax.set_axisbelow(True)
+
+
+def _axis_break_limits(values: Sequence[float]) -> tuple[float, float, float, float] | None:
+    finite = sorted(v for v in values if np.isfinite(v))
+    if len(finite) < 4:
+        return None
+    gaps = [
+        (
+            finite[index + 1] / max(finite[index], 1e-12),
+            finite[index + 1] - finite[index],
+            index,
+        )
+        for index in range(len(finite) - 1)
+    ]
+    ratio, absolute_gap, index = max(gaps, key=lambda item: (item[0], item[1]))
+    data_span = finite[-1] - finite[0]
+    if ratio < 1.35 and absolute_gap < data_span * 0.22:
+        return None
+    lower_top = finite[index] + max(abs(finite[index]) * 0.08, absolute_gap * 0.08)
+    upper_bottom = finite[index + 1] - max(abs(finite[index + 1]) * 0.06, absolute_gap * 0.08)
+    upper_top = finite[-1] * 1.08
+    lower_bottom = 0.0 if finite[0] >= 0 else finite[0] * 1.08
+    if upper_bottom <= lower_top:
+        return None
+    return lower_bottom, lower_top, upper_bottom, upper_top
+
+
+def _sum_aligned_values(
+    sizes: Sequence[int],
+    first: Sequence[float] | None,
+    second: Sequence[float] | None,
+) -> list[float]:
+    first_values = _aligned_values(sizes, first)
+    second_values = _aligned_values(sizes, second)
+    totals = []
+    for lhs, rhs in zip(first_values, second_values, strict=True):
+        if np.isfinite(lhs) and np.isfinite(rhs):
+            totals.append(lhs + rhs)
+        elif np.isfinite(lhs):
+            totals.append(lhs)
+        elif np.isfinite(rhs):
+            totals.append(rhs)
+        else:
+            totals.append(float("nan"))
+    return totals
+
+
+def _draw_break_marks(lower_ax: plt.Axes, upper_ax: plt.Axes) -> None:
+    kwargs = dict(marker=[(-1, -0.5), (1, 0.5)], markersize=9, linestyle="none",
+                  color="#4B5563", mec="#4B5563", mew=0.9, clip_on=False)
+    upper_ax.plot([0, 1], [0, 0], transform=upper_ax.transAxes, **kwargs)
+    lower_ax.plot([0, 1], [1, 1], transform=lower_ax.transAxes, **kwargs)
+
+
+def _plot_series(
+    ax: plt.Axes,
+    sizes: Sequence[int],
+    series: Sequence[dict[str, Any]],
+) -> None:
+    for item in series:
+        ax.plot(
+            sizes,
+            item["y"],
+            label=item["label"],
+            color=item["color"],
+            marker=item.get("marker", "o"),
+            linestyle=item.get("linestyle", "-"),
+            linewidth=2.25,
+            markersize=5.2,
+            markeredgewidth=0.8,
+            markeredgecolor="white",
+            alpha=item.get("alpha", 0.95),
+        )
+
+
+def _publication_line_figure(
+    sizes: Sequence[int],
+    series: Sequence[dict[str, Any]],
+    *,
+    ylabel: str,
+    title: str,
+    save_path: str | None,
+    use_axis_break: bool = True,
+    yscale: str = "linear",
+) -> plt.Figure:
+    values = _finite_values(series)
+    limits = _axis_break_limits(values) if use_axis_break else None
+
+    if limits is None:
+        fig, ax = plt.subplots(figsize=(7.2, 4.6), constrained_layout=True)
+        axes = [ax]
+    else:
+        fig, (upper_ax, lower_ax) = plt.subplots(
+            2,
+            1,
+            figsize=(7.2, 5.2),
+            sharex=True,
+            constrained_layout=True,
+            gridspec_kw={"height_ratios": [1.0, 2.8], "hspace": 0.06},
+        )
+        axes = [upper_ax, lower_ax]
+
+    for ax in axes:
+        _plot_series(ax, sizes, series)
+        ax.set_yscale(yscale)
+        _publication_style_axes(ax)
+
+    if limits is not None:
+        lower_bottom, lower_top, upper_bottom, upper_top = limits
+        upper_ax, lower_ax = axes
+        upper_ax.set_ylim(upper_bottom, upper_top)
+        lower_ax.set_ylim(lower_bottom, lower_top)
+        upper_ax.spines["bottom"].set_visible(False)
+        lower_ax.spines["top"].set_visible(False)
+        upper_ax.tick_params(labelbottom=False, bottom=False)
+        _draw_break_marks(lower_ax, upper_ax)
+        ax = lower_ax
+    else:
+        ax = axes[0]
+
+    axes[0].set_title(title, fontsize=13, fontweight="semibold", pad=10, color="#111827")
+    ax.set_xlabel("Graph size (vertices)", fontsize=11, color="#111827")
+    fig.supylabel(ylabel, fontsize=11, color="#111827")
+    axes[0].legend(
+        loc="best",
+        frameon=True,
+        framealpha=0.92,
+        facecolor="white",
+        edgecolor="#E5E7EB",
+        fontsize=9.5,
+    )
+
+    if save_path:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    return fig
+
+
+def _solver_series(
+    sizes: Sequence[int],
+    key: str,
+    label: str,
+    color: str,
+    values: Sequence[float] | None,
+    marker: str,
+) -> dict[str, Any]:
+    return {
+        "key": key,
+        "label": label,
+        "color": color,
+        "marker": marker,
+        "y": _aligned_values(sizes, values),
+    }
 
 
 def plot_score_correlations(
@@ -316,27 +519,49 @@ def plot_apsp_reduction(
     dnc_strategies: dict[str, dict] | None = None,
     save_path: str | None = None,
 ) -> plt.Figure:
-    """Plot APSP reduction comparing Random, Raw SA, Global (QUBO), and Clustered (DnC)."""
-    fig = plt.figure(figsize=(10, 6))
-    plt.plot(sizes, random_apsp, "o-", label="Random Orientation", color="gray", alpha=0.6)
-    plt.plot(sizes, raw_sa_apsp, "x--", label="Raw SA (SAMR2SSolver)", color="orange")
-    plt.plot(sizes, global_apsp, "s-", label="Global (QuboMR2SSolver)", color="blue")
-    for name, section in (mr2s_variants or {}).items():
-        marker, color, label = MR2S_VARIANT_STYLES.get(name, ("P-", None, name.replace("_", " ")))
-        plt.plot(sizes, section.get("apsp", []), marker, label=label, color=color, linewidth=2)
-    strategies = dnc_strategies or {"poster": {"apsp": clustered_apsp}}
-    for name, section in strategies.items():
-        marker, color, label = DNC_STRATEGY_STYLES.get(name, ("D-", None, f"DnC {name}"))
-        plt.plot(sizes, section.get("apsp", []), marker, label=label, color=color, linewidth=2)
-    plt.xlabel("Graph Size (Number of Vertices)", fontsize=12)
-    plt.ylabel("Normalized APSP Sum", fontsize=12)
-    plt.title("APSP Reduction: Comparison of Solvers", fontsize=14)
-    plt.legend()
-    plt.grid(True, linestyle="--", alpha=0.7)
-
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-    return fig
+    """Plot normalized APSP for poster/paper comparison; lower is better."""
+    del random_apsp, global_apsp
+    series = [
+        _solver_series(
+            sizes,
+            "raw_sa",
+            SOLVER_DISPLAY_NAMES["raw_sa"],
+            PUBLICATION_COLORS["traditional_raw"],
+            raw_sa_apsp,
+            PUBLICATION_MARKERS["raw_sa"],
+        )
+    ]
+    for name in ("robbin_mr2s", "iterated_local_search_mr2s"):
+        if name in (mr2s_variants or {}):
+            _, color, label = MR2S_VARIANT_STYLES[name]
+            series.append(
+                _solver_series(
+                    sizes,
+                    name,
+                    label,
+                    color,
+                    mr2s_variants[name].get("apsp", []),
+                    PUBLICATION_MARKERS[name],
+                )
+            )
+    cluster_section = (dnc_strategies or {}).get("embedding_aware", {"apsp": clustered_apsp})
+    series.append(
+        _solver_series(
+            sizes,
+            "embedding_aware",
+            SOLVER_DISPLAY_NAMES["embedding_aware"],
+            PUBLICATION_COLORS["ours"],
+            cluster_section.get("apsp", clustered_apsp),
+            PUBLICATION_MARKERS["embedding_aware"],
+        )
+    )
+    return _publication_line_figure(
+        sizes,
+        series,
+        ylabel="Normalized APSP (lower is better)",
+        title="APSP Objective by Solver",
+        save_path=save_path,
+    )
 
 
 def plot_flow_stability(
@@ -349,27 +574,49 @@ def plot_flow_stability(
     dnc_strategies: dict[str, dict] | None = None,
     save_path: str | None = None,
 ) -> plt.Figure:
-    """Plot Flow Stability comparing Random, Raw SA, Global (QUBO), and Clustered (DnC)."""
-    fig = plt.figure(figsize=(10, 6))
-    plt.plot(sizes, random_flow, "o-", label="Random Orientation", color="gray", alpha=0.6)
-    plt.plot(sizes, raw_sa_flow, "x--", label="Raw SA (SAMR2SSolver)", color="orange")
-    plt.plot(sizes, global_flow, "s-", label="Global (QuboMR2SSolver)", color="blue")
-    for name, section in (mr2s_variants or {}).items():
-        marker, color, label = MR2S_VARIANT_STYLES.get(name, ("P-", None, name.replace("_", " ")))
-        plt.plot(sizes, section.get("flow", []), marker, label=label, color=color, linewidth=2)
-    strategies = dnc_strategies or {"poster": {"flow": clustered_flow}}
-    for name, section in strategies.items():
-        marker, color, label = DNC_STRATEGY_STYLES.get(name, ("D-", None, f"DnC {name}"))
-        plt.plot(sizes, section.get("flow", []), marker, label=label, color=color, linewidth=2)
-    plt.xlabel("Graph Size (Number of Vertices)", fontsize=12)
-    plt.ylabel("Flow Imbalance Score Σ(In-Out)²", fontsize=12)
-    plt.title("Flow Stability: Comparison of Solvers", fontsize=14)
-    plt.legend()
-    plt.grid(True, linestyle="--", alpha=0.7)
-
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-    return fig
+    """Plot flow imbalance for poster/paper comparison; lower is better."""
+    del random_flow, global_flow
+    series = [
+        _solver_series(
+            sizes,
+            "raw_sa",
+            SOLVER_DISPLAY_NAMES["raw_sa"],
+            PUBLICATION_COLORS["traditional_raw"],
+            raw_sa_flow,
+            PUBLICATION_MARKERS["raw_sa"],
+        )
+    ]
+    for name in ("robbin_mr2s", "iterated_local_search_mr2s"):
+        if name in (mr2s_variants or {}):
+            _, color, label = MR2S_VARIANT_STYLES[name]
+            series.append(
+                _solver_series(
+                    sizes,
+                    name,
+                    label,
+                    color,
+                    mr2s_variants[name].get("flow", []),
+                    PUBLICATION_MARKERS[name],
+                )
+            )
+    cluster_section = (dnc_strategies or {}).get("embedding_aware", {"flow": clustered_flow})
+    series.append(
+        _solver_series(
+            sizes,
+            "embedding_aware",
+            SOLVER_DISPLAY_NAMES["embedding_aware"],
+            PUBLICATION_COLORS["ours"],
+            cluster_section.get("flow", clustered_flow),
+            PUBLICATION_MARKERS["embedding_aware"],
+        )
+    )
+    return _publication_line_figure(
+        sizes,
+        series,
+        ylabel="Flow imbalance score (lower is better)",
+        title="Flow Stability by Solver",
+        save_path=save_path,
+    )
 
 
 def plot_preprocessing_scalability(
@@ -387,71 +634,67 @@ def plot_preprocessing_scalability(
     dnc_strategies: dict[str, dict] | None = None,
     save_path: str | None = None,
 ) -> plt.Figure:
-    """Plot Preprocessing Scalability (Global QUBO vs Clustered DnC)."""
-    n_panels = 3 if global_physical is not None else 2
-    fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 6))
-    if n_panels == 1:
-        axes = [axes]
-
-    # 1. QUBO Variables
-    ax1 = axes[0]
-    ax1.plot(sizes, global_vars, "s-", label="Global (Full Graph)", color="blue")
-    for name, section in (mr2s_variants or {}).items():
-        marker, color, label = MR2S_VARIANT_STYLES.get(name, ("P-", None, name.replace("_", " ")))
-        ax1.plot(sizes, section.get("qubo_vars", []), marker, label=label, color=color, linewidth=2)
-    strategies = dnc_strategies or {"poster": {"qubo_vars": clustered_vars, "subgraph_size": clustered_sg}}
-    for name, section in strategies.items():
-        marker, color, label = DNC_STRATEGY_STYLES.get(name, ("D-", None, f"DnC {name}"))
-        ax1.plot(sizes, section.get("qubo_vars", []), marker, label=label, color=color, linewidth=2)
-    ax1.set_xlabel("Graph Size (Vertices)", fontsize=12)
-    ax1.set_ylabel("Number of QUBO Variables", fontsize=12)
-    ax1.set_title("QUBO Complexity Reduction", fontsize=14)
-    ax1.legend()
-    ax1.grid(True, linestyle="--", alpha=0.7)
-
-    # 2. Subgraph Size
-    ax2 = axes[1]
-    ax2.plot(sizes, global_sg, "s-", label="Global (Full Graph)", color="blue")
-    for name, section in (mr2s_variants or {}).items():
-        marker, color, label = MR2S_VARIANT_STYLES.get(name, ("P-", None, name.replace("_", " ")))
-        ax2.plot(sizes, section.get("subgraph_size", []), marker, label=label, color=color, linewidth=2)
-    for name, section in strategies.items():
-        marker, color, label = DNC_STRATEGY_STYLES.get(name, ("D-", None, f"DnC {name}"))
-        ax2.plot(sizes, section.get("subgraph_size", []), marker, label=label, color=color, linewidth=2)
-    ax2.set_xlabel("Graph Size (Vertices)", fontsize=12)
-    ax2.set_ylabel("Max QUBO Variables in One Subgraph", fontsize=12)
-    ax2.set_title("Subgraph Size Reduction", fontsize=14)
-    ax2.legend()
-    ax2.grid(True, linestyle="--", alpha=0.7)
-
-    # 3. Physical Qubits (Detailed)
-    if global_physical is not None and clustered_physical_total is not None:
-        ax3 = axes[2]
-        ax3.plot(sizes, global_physical, "s-", label="Global Total", color="blue", alpha=0.8)
-        for name, section in (mr2s_variants or {}).items():
-            marker, color, label = MR2S_VARIANT_STYLES.get(name, ("P-", None, name.replace("_", " ")))
-            ax3.plot(sizes, section.get("phys_total", []), marker, label=f"{label} total", color=color, linewidth=2)
-        for name, section in strategies.items():
-            marker, color, label = DNC_STRATEGY_STYLES.get(name, ("D-", None, f"DnC {name}"))
-            ax3.plot(sizes, section.get("phys_total", []), marker, label=f"{label} total", color=color, linewidth=2)
-
-        if clustered_physical_max:
-            ax3.plot(sizes, clustered_physical_max, "^--", label="Clustered Max", color="orange")
-        if clustered_physical_mean:
-            ax3.plot(sizes, clustered_physical_mean, "x--", label="Clustered Mean", color="green")
-        if clustered_physical_min:
-            ax3.plot(sizes, clustered_physical_min, "v--", label="Clustered Min", color="purple")
-
-        ax3.set_xlabel("Graph Size (Vertices)", fontsize=12)
-        ax3.set_ylabel("Physical Qubit Estimate (Pegasus)", fontsize=12)
-        ax3.set_title("Physical Resource Scalability", fontsize=14)
-        ax3.legend(fontsize=9)
-        ax3.grid(True, linestyle="--", alpha=0.7)
-
-    plt.tight_layout()
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-    return fig
+    """Plot one BQM binary-variable scalability comparison."""
+    del global_sg, global_physical, clustered_physical_total, mr2s_variants
+    cluster_section = (dnc_strategies or {}).get(
+        "embedding_aware",
+        {
+            "qubo_vars": clustered_vars,
+            "subgraph_size": clustered_sg,
+            "qvars_mean": clustered_physical_mean,
+            "qvars_min": clustered_physical_min,
+        },
+    )
+    series = [
+        _solver_series(
+            sizes,
+            "global",
+            SOLVER_DISPLAY_NAMES["global"],
+            PUBLICATION_COLORS["global"],
+            global_vars,
+            PUBLICATION_MARKERS["global"],
+        ),
+        _solver_series(
+            sizes,
+            "embedding_aware_sum",
+            "Cluster MR2S Solver (Ours), subgraph sum",
+            PUBLICATION_COLORS["ours"],
+            cluster_section.get("qubo_vars", clustered_vars),
+            "D",
+        ),
+        _solver_series(
+            sizes,
+            "embedding_aware_max",
+            "Cluster MR2S Solver (Ours), subgraph max",
+            PUBLICATION_COLORS["ours_light"],
+            cluster_section.get("subgraph_size", clustered_sg),
+            "^",
+        ),
+        _solver_series(
+            sizes,
+            "embedding_aware_avg",
+            "Cluster MR2S Solver (Ours), subgraph avg",
+            "#D98D89",
+            cluster_section.get("qvars_mean", clustered_physical_mean),
+            "o",
+        ),
+        _solver_series(
+            sizes,
+            "embedding_aware_min",
+            "Cluster MR2S Solver (Ours), subgraph min",
+            "#F0B7B2",
+            cluster_section.get("qvars_min", clustered_physical_min),
+            "v",
+        ),
+    ]
+    return _publication_line_figure(
+        sizes,
+        series,
+        ylabel="BQM binary variable count",
+        title="BQM Size Scaling",
+        save_path=save_path,
+        use_axis_break=False,
+    )
 
 
 def plot_spent_time(
@@ -467,27 +710,49 @@ def plot_spent_time(
     dnc_timings: dict[str, list[float]] | None = None,
     save_path: str | None = None,
 ) -> plt.Figure:
-    """Plot mean spent time by graph size for each poster-results stage."""
-    fig = plt.figure(figsize=(10, 6))
-    plt.plot(sizes, graph_time, "o-", label="Graph generation", color="black", alpha=0.7)
-    plt.plot(sizes, raw_sa_time, "x--", label="Raw SA", color="orange")
-    plt.plot(sizes, global_solve_time, "s-", label="Global solve", color="blue")
-    for name, (marker, color, label) in MR2S_VARIANT_STYLES.items():
+    """Plot solver runtime for poster/paper comparison."""
+    del graph_time, global_solve_time, global_embed_time, random_time
+    series = [
+        _solver_series(
+            sizes,
+            "raw_sa",
+            SOLVER_DISPLAY_NAMES["raw_sa"],
+            PUBLICATION_COLORS["traditional_raw"],
+            raw_sa_time,
+            PUBLICATION_MARKERS["raw_sa"],
+        )
+    ]
+    for name in ("robbin_mr2s", "iterated_local_search_mr2s"):
         values = (mr2s_variant_timings or {}).get(f"{name}_solve", [])
         if values:
-            plt.plot(sizes, values, marker, label=f"{label} solve", color=color, linewidth=2)
-    timings = dnc_timings or {"dnc_poster_solve": clustered_solve_time}
-    for name, (marker, color, label) in DNC_STRATEGY_STYLES.items():
-        values = timings.get(f"dnc_{name}_solve", [])
-        if values:
-            plt.plot(sizes, values, marker, label=f"{label} solve", color=color, linewidth=2)
-    plt.plot(sizes, random_time, "o--", label="Random baseline", color="gray", alpha=0.7)
-    plt.xlabel("Graph Size (Vertices)", fontsize=12)
-    plt.ylabel("Mean Spent Time (seconds)", fontsize=12)
-    plt.title("Spent Time by Stage", fontsize=14)
-    plt.legend()
-    plt.grid(True, linestyle="--", alpha=0.7)
-
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-    return fig
+            _, color, label = MR2S_VARIANT_STYLES[name]
+            series.append(
+                _solver_series(
+                    sizes,
+                    name,
+                    label,
+                    color,
+                    values,
+                    PUBLICATION_MARKERS[name],
+                )
+            )
+    cluster_values = (dnc_timings or {}).get("dnc_embedding_aware_solve", clustered_solve_time)
+    cluster_embed_values = (dnc_timings or {}).get("dnc_embedding_aware_embed", clustered_embed_time)
+    series.append(
+        _solver_series(
+            sizes,
+            "embedding_aware",
+            SOLVER_DISPLAY_NAMES["embedding_aware"],
+            PUBLICATION_COLORS["ours"],
+            _sum_aligned_values(sizes, cluster_values, cluster_embed_values),
+            PUBLICATION_MARKERS["embedding_aware"],
+        )
+    )
+    return _publication_line_figure(
+        sizes,
+        series,
+        ylabel="Mean runtime (seconds)",
+        title="Solver Runtime by Graph Size",
+        save_path=save_path,
+        use_axis_break=False,
+    )

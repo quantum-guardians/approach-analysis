@@ -1,0 +1,358 @@
+{
+  "sizes": [
+    100,
+    200,
+    300,
+    400,
+    500
+  ],
+  "plots": {
+    "apsp_reduction": {
+      "output": "apsp_reduction.png",
+      "y_label": "Normalized APSP (lower is better)",
+      "series": [
+        {
+          "key": "raw_sa",
+          "display_name": "Raw SA (Traditional)",
+          "color": "#2F6CA3",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            5.131346801346801,
+            6.731742043551088,
+            7.847792642140469,
+            null,
+            null
+          ]
+        },
+        {
+          "key": "robbin_mr2s",
+          "display_name": "Robbin (Traditional)",
+          "color": "#5B8CC0",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            15.2096632996633,
+            26.680469011725293,
+            38.13583797844668,
+            48.00383040935673,
+            65.82987174348698
+          ]
+        },
+        {
+          "key": "iterated_local_search_mr2s",
+          "display_name": "ILS (Traditional)",
+          "color": "#1B4F72",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            5.0999326599326595,
+            6.721021775544389,
+            7.876012634708286,
+            8.944367167919799,
+            9.517882431529726
+          ]
+        },
+        {
+          "key": "embedding_aware",
+          "display_name": "Cluster MR2S Solver (Ours)",
+          "color": "#C43C39",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            5.461414141414142,
+            7.1814698492462306,
+            8.385496098104795,
+            9.564482038429405,
+            10.247532398129593
+          ]
+        }
+      ]
+    },
+    "flow_stability": {
+      "output": "flow_stability.png",
+      "y_label": "Flow imbalance score (lower is better)",
+      "series": [
+        {
+          "key": "raw_sa",
+          "display_name": "Raw SA (Traditional)",
+          "color": "#2F6CA3",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            117.33333333333333,
+            232.66666666666666,
+            392.6666666666667,
+            756.0,
+            1368.0
+          ]
+        },
+        {
+          "key": "robbin_mr2s",
+          "display_name": "Robbin (Traditional)",
+          "color": "#5B8CC0",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            992.0,
+            1942.0,
+            3159.3333333333335,
+            4030.6666666666665,
+            5233.333333333333
+          ]
+        },
+        {
+          "key": "iterated_local_search_mr2s",
+          "display_name": "ILS (Traditional)",
+          "color": "#1B4F72",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            132.0,
+            283.3333333333333,
+            426.0,
+            566.6666666666666,
+            713.3333333333334
+          ]
+        },
+        {
+          "key": "embedding_aware",
+          "display_name": "Cluster MR2S Solver (Ours)",
+          "color": "#C43C39",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            110.66666666666667,
+            185.0,
+            294.0,
+            428.0,
+            505.3333333333333
+          ]
+        }
+      ]
+    },
+    "scalability": {
+      "output": "scalability.png",
+      "y_label": "BQM binary variable count",
+      "series": [
+        {
+          "key": "global",
+          "display_name": "Global MR2S Solver",
+          "color": "#4B5563",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            284.0,
+            582.0,
+            881.6666666666666,
+            1178.6666666666667,
+            1480.6666666666667
+          ]
+        },
+        {
+          "key": "embedding_aware_sum",
+          "display_name": "Cluster MR2S Solver (Ours), subgraph sum",
+          "color": "#C43C39",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            284.0,
+            533.0,
+            813.6666666666666,
+            1063.0,
+            1346.3333333333333
+          ]
+        },
+        {
+          "key": "embedding_aware_max",
+          "display_name": "Cluster MR2S Solver (Ours), subgraph max",
+          "color": "#E06B65",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            284.0,
+            263.0,
+            347.3333333333333,
+            319.6666666666667,
+            364.6666666666667
+          ]
+        },
+        {
+          "key": "embedding_aware_avg",
+          "display_name": "Cluster MR2S Solver (Ours), subgraph avg",
+          "color": "#D98D89",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            284.0,
+            155.41666666666669,
+            225.53333333333333,
+            154.07738095238096,
+            228.72698412698412
+          ]
+        },
+        {
+          "key": "embedding_aware_min",
+          "display_name": "Cluster MR2S Solver (Ours), subgraph min",
+          "color": "#F0B7B2",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            284.0,
+            19.0,
+            134.33333333333334,
+            2.0,
+            2.0
+          ]
+        }
+      ]
+    },
+    "spent_time": {
+      "output": "spent_time.png",
+      "y_label": "Mean runtime (seconds)",
+      "series": [
+        {
+          "key": "raw_sa",
+          "display_name": "Raw SA (Traditional)",
+          "color": "#2F6CA3",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            1075.0746098333336,
+            7209.160975528001,
+            24936.079457750002,
+            56745.74802715267,
+            101597.17261198633
+          ]
+        },
+        {
+          "key": "robbin_mr2s",
+          "display_name": "Robbin (Traditional)",
+          "color": "#5B8CC0",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            0.3530008056668521,
+            0.8392313473341346,
+            1.5703276393348158,
+            2.2396136250002505,
+            3.5431813469913322
+          ]
+        },
+        {
+          "key": "iterated_local_search_mr2s",
+          "display_name": "ILS (Traditional)",
+          "color": "#1B4F72",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            292.7746013469999,
+            3729.595694472333,
+            10358.188784541999,
+            38068.18446248567,
+            44861.83974500033
+          ]
+        },
+        {
+          "key": "embedding_aware",
+          "display_name": "Cluster MR2S Solver (Ours)",
+          "color": "#C43C39",
+          "x": [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          "y": [
+            90.93972640266716,
+            1532.3320187246427,
+            2583.9529791359478,
+            3286.0221179403984,
+            4259.836811635022
+          ]
+        }
+      ]
+    }
+  }
+}

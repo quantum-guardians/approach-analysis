@@ -38,7 +38,7 @@ import numpy as np
 from scipy.spatial import Delaunay
 
 from mr2s_module import FaceClusterPartition as FaceCycle, Graph as MR2SGraph, \
-  Edge as MR2SEdge, NHop, QuboMR2SSolver, SAQuboSolver, ApspSumRanker, \
+  Edge as MR2SEdge, NHop, QuboMR2SSolver, QuboSolver, ApspSumRanker, \
   Evaluator, NHopPolyGenerator, FlowPolyGenerator, SmallWorldSpec
 
 from src.visualizer import plot_face_k_analysis, plot_optimal_k_fit_evidence
@@ -48,11 +48,10 @@ spec = SmallWorldSpec([NHop(2, 1), NHop(3, 1)])
 
 def _build_solver(target_k: int) -> QuboMR2SSolver:
     """Create an isolated MR2S solver configured for a FaceCycle run."""
-    n_hop_poly = NHopPolyGenerator()
-    n_hop_poly.small_world_spec = spec
+    n_hop_poly = NHopPolyGenerator(small_world_spec=spec)
     solver = QuboMR2SSolver(
         FaceCycle(target_k=target_k),
-        SAQuboSolver(ApspSumRanker()),
+        QuboSolver.create_sa_solver(ApspSumRanker()),
         Evaluator(),
         [n_hop_poly, FlowPolyGenerator()],
     )
@@ -143,7 +142,7 @@ def _nx_to_mr2s_graph(nx_graph: nx.Graph) -> MR2SGraph:
         MR2SEdge(int(u), int(v), 1, directed=False)
         for u, v in nx_graph.edges()
     ]
-    # mr2s-module 0.0.8 stores edges as a dict, while older call sites iterate
+    # mr2s-module stores edges as a dict, while older call sites iterate
     # ``graph.edges`` as Edge objects. Preserve both behaviours during the API shift.
     class EdgeDict(dict):
         def __iter__(self):
