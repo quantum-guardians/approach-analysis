@@ -10,6 +10,7 @@ from typing import Any
 import networkx as nx
 
 from src.commands import poster_results as pr
+from src.commands.poster_results import _cli as pr_cli
 from src.commands.poster_results.runner import (
     PosterResultsAggregator,
     PosterResultsRunner,
@@ -151,7 +152,7 @@ def test_trial_scheduler_uses_spawn_on_macos(monkeypatch) -> None:
 
 
 def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr_cli, "_plot_results", lambda results, output_dir: None)
 
     call_count = 0
 
@@ -182,7 +183,7 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
 
 
 def test_run_migrates_legacy_full_trial_cache_to_solver_cache(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr_cli, "_plot_results", lambda results, output_dir: None)
     cache_dir = tmp_path / "poster_trial_cache"
     legacy_cache = SimpleCache(str(cache_dir))
     legacy_key = pr._poster_trial_cache_key(n=8, trial=0, seed=0)
@@ -212,7 +213,7 @@ def test_run_migrates_legacy_full_trial_cache_to_solver_cache(tmp_path, monkeypa
 
 
 def test_run_can_disable_poster_trial_cache(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr_cli, "_plot_results", lambda results, output_dir: None)
     monkeypatch.setattr(pr._solver_helpers, "_run_trial", _fake_trial)
 
     pr.run(
@@ -228,7 +229,7 @@ def test_run_can_disable_poster_trial_cache(tmp_path, monkeypatch) -> None:
 
 
 def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(pr_plotting, "_plot_results", lambda results, output_dir: None)
+    monkeypatch.setattr(pr_cli, "_plot_results", lambda results, output_dir: None)
 
     existing = {
         "sizes": [8],
@@ -440,6 +441,95 @@ def test_runner_accepts_custom_aggregator_and_plotter(tmp_path) -> None:
     assert results["custom"]["trial_count"] == 1
     assert plotted["results"] == results
     assert plotted["output_dir"] == str(tmp_path)
+
+
+def test_plot_results_writes_publication_series_summary(tmp_path, monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_apsp(sizes, random_apsp, raw_sa_apsp, global_apsp, clustered_apsp, **kwargs):
+        del random_apsp, raw_sa_apsp, clustered_apsp, kwargs
+        captured["apsp"] = (sizes, global_apsp)
+
+    def fake_flow(sizes, random_flow, raw_sa_flow, global_flow, clustered_flow, **kwargs):
+        del random_flow, raw_sa_flow, clustered_flow, kwargs
+        captured["flow"] = (sizes, global_flow)
+
+    def fake_scalability(*_args, **_kwargs):
+        captured["scalability"] = True
+
+    def fake_spent_time(
+        sizes,
+        graph_time,
+        raw_sa_time,
+        global_solve_time,
+        global_embed_time,
+        *_args,
+        **_kwargs,
+    ):
+        del graph_time, raw_sa_time
+        captured["time"] = (sizes, global_solve_time, global_embed_time)
+
+    monkeypatch.setattr(pr_plotting, "plot_apsp_reduction", fake_apsp)
+    monkeypatch.setattr(pr_plotting, "plot_flow_stability", fake_flow)
+    monkeypatch.setattr(pr_plotting, "plot_preprocessing_scalability", fake_scalability)
+    monkeypatch.setattr(pr_plotting, "plot_spent_time", fake_spent_time)
+
+    results = {
+        "sizes": [100, 200],
+        "random": {"apsp": [5.0, 6.0], "flow": [7.0, 8.0]},
+        "raw_sa": {"apsp": [4.0, 5.0], "flow": [6.0, 7.0]},
+        "global": {
+            "apsp": [3.0, 4.0],
+            "flow": [5.0, 6.0],
+            "qubo_vars": [30.0, 40.0],
+            "subgraph_size": [30.0, 40.0],
+            "phys_total": [300.0, 400.0],
+        },
+        "mr2s": {
+            "apsp": [2.0, 3.0],
+            "flow": [4.0, 5.0],
+            "qubo_vars": [20.0, 30.0],
+            "subgraph_size": [20.0, 30.0],
+            "phys_total": [200.0, 300.0],
+            "phys_max": [120.0, 130.0],
+            "phys_mean": [100.0, 110.0],
+            "phys_min": [80.0, 90.0],
+        },
+        "timings": {
+            "graph": [0.1, 0.2],
+            "raw_sa": [1.0, 2.0],
+            "global_solve": [3.0, 4.0],
+            "global_embed": [0.3, 0.4],
+            "clustered_solve": [2.0, 3.0],
+            "clustered_embed": [0.2, 0.3],
+            "random": [0.01, 0.02],
+        },
+    }
+
+    pr_plotting._plot_results(results, str(tmp_path))
+
+    summary = json.loads((tmp_path / "plotted_data_summary.json").read_text())
+    assert [item["key"] for item in summary["plots"]["apsp_reduction"]["series"]] == [
+        "raw_sa",
+        "embedding_aware",
+    ]
+    assert [item["key"] for item in summary["plots"]["flow_stability"]["series"]] == [
+        "raw_sa",
+        "embedding_aware",
+    ]
+    assert [item["key"] for item in summary["plots"]["scalability"]["series"]] == [
+        "global",
+        "embedding_aware_sum",
+        "embedding_aware_max",
+        "embedding_aware_avg",
+        "embedding_aware_min",
+    ]
+    assert summary["plots"]["apsp_reduction"]["series"][1]["display_name"] == "Cluster MR2S Solver (Ours)"
+    assert summary["plots"]["apsp_reduction"]["series"][1]["color"] == pr_plotting.SERIES_COLORS["embedding_aware"]
+    assert summary["plots"]["spent_time"]["series"][1]["y"] == [2.2, 3.3]
+    assert captured["apsp"] == ([100, 200], [3.0, 4.0])
+    assert captured["flow"] == ([100, 200], [5.0, 6.0])
+    assert captured["time"] == ([100, 200], [3.0, 4.0], [0.3, 0.4])
 
 
 def test_run_mr2s_trial_records_graph_generation_time(monkeypatch) -> None:
@@ -667,12 +757,15 @@ def test_build_dnc_qubo_solver_sets_subgraph_processes_for_qa(monkeypatch) -> No
     assert solver_sa.subgraph_processes is None
 
 
-def test_dnc_strategy_empty_sample_failure_returns_nan(monkeypatch) -> None:
+def test_dnc_strategy_solver_failure_returns_nan(monkeypatch) -> None:
     from src.commands.poster_results.solvers import dnc_strategy
+
+    class SolverFailure(Exception):
+        pass
 
     class FailingSolver:
         def run(self, _graph):
-            raise ValueError("min() iterable argument is empty")
+            raise SolverFailure("chain for e_0_162 is not connected")
 
     monkeypatch.setattr(
         dnc_strategy,
@@ -691,6 +784,6 @@ def test_dnc_strategy_empty_sample_failure_returns_nan(monkeypatch) -> None:
     assert math.isnan(result.apsp)
     assert math.isnan(result.flow)
     assert result.partition["selected_reason"] == "failed"
-    assert result.partition["error"] == "min() iterable argument is empty"
+    assert result.partition["error"] == "chain for e_0_162 is not connected"
     assert timings.values["clustered_solve"] == 0.0
     assert timings.values["clustered_embed"] >= 0.0

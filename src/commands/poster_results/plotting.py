@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import math
 import os
 from typing import Any
 
 from src.visualizer import (
+    PUBLICATION_COLORS,
+    SOLVER_DISPLAY_NAMES,
     plot_apsp_reduction,
     plot_flow_stability,
     plot_preprocessing_scalability,
@@ -15,6 +19,17 @@ from src.visualizer import (
 
 CLUSTER_DNC_STRATEGIES = ("embedding_aware",)
 BASELINE_MR2S_VARIANTS = ("robbin_mr2s", "iterated_local_search_mr2s")
+SERIES_COLORS = {
+    "raw_sa": PUBLICATION_COLORS["traditional_raw"],
+    "robbin_mr2s": PUBLICATION_COLORS["traditional_robbin"],
+    "iterated_local_search_mr2s": PUBLICATION_COLORS["traditional_ils"],
+    "embedding_aware": PUBLICATION_COLORS["ours"],
+    "global": PUBLICATION_COLORS["global"],
+    "embedding_aware_sum": PUBLICATION_COLORS["ours"],
+    "embedding_aware_max": PUBLICATION_COLORS["ours_light"],
+    "embedding_aware_avg": "#D98D89",
+    "embedding_aware_min": "#F0B7B2",
+}
 
 
 def _select_sections(results: dict[str, Any], section: str, names: tuple[str, ...]) -> dict[str, Any]:
@@ -49,6 +64,196 @@ def _cluster_qvar_stats(section: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _aligned_values(sizes: list[int], values: list[float] | None) -> list[float | None]:
+    aligned = list(values or [])
+    if len(aligned) < len(sizes):
+        aligned.extend([float("nan")] * (len(sizes) - len(aligned)))
+    return [_json_number(value) for value in aligned[:len(sizes)]]
+
+
+def _sum_series(sizes: list[int], first: list[float] | None, second: list[float] | None) -> list[float | None]:
+    first_values = _aligned_values(sizes, first)
+    second_values = _aligned_values(sizes, second)
+    totals = []
+    for lhs, rhs in zip(first_values, second_values, strict=True):
+        if lhs is not None and rhs is not None:
+            totals.append(lhs + rhs)
+        elif lhs is not None:
+            totals.append(lhs)
+        elif rhs is not None:
+            totals.append(rhs)
+        else:
+            totals.append(None)
+    return totals
+
+
+def _json_number(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        value = float(value)
+        return value if math.isfinite(value) else None
+    return None
+
+
+def _series_summary(
+    sizes: list[int],
+    key: str,
+    display_name: str,
+    color: str,
+    values: list[float] | list[float | None] | None,
+) -> dict[str, Any]:
+    return {
+        "key": key,
+        "display_name": display_name,
+        "color": color,
+        "x": sizes,
+        "y": values if values and len(values) == len(sizes) and any(value is None for value in values) else _aligned_values(sizes, values),
+    }
+
+
+def _plot_data_summary(
+    sizes: list[int],
+    results: dict[str, Any],
+    clustered: dict[str, Any],
+    mr2s_variants: dict[str, Any],
+) -> dict[str, Any]:
+    raw_sa = results.get("raw_sa", {})
+    global_result = results.get("global", {})
+    timings = results.get("timings", {})
+
+    apsp_series = [
+        _series_summary(sizes, "raw_sa", SOLVER_DISPLAY_NAMES["raw_sa"], SERIES_COLORS["raw_sa"], raw_sa.get("apsp")),
+    ]
+    flow_series = [
+        _series_summary(sizes, "raw_sa", SOLVER_DISPLAY_NAMES["raw_sa"], SERIES_COLORS["raw_sa"], raw_sa.get("flow")),
+    ]
+    for name in BASELINE_MR2S_VARIANTS:
+        if name not in mr2s_variants:
+            continue
+        apsp_series.append(
+            _series_summary(
+                sizes,
+                name,
+                SOLVER_DISPLAY_NAMES[name],
+                SERIES_COLORS[name],
+                mr2s_variants[name].get("apsp"),
+            )
+        )
+        flow_series.append(
+            _series_summary(
+                sizes,
+                name,
+                SOLVER_DISPLAY_NAMES[name],
+                SERIES_COLORS[name],
+                mr2s_variants[name].get("flow"),
+            )
+        )
+    apsp_series.append(
+        _series_summary(
+            sizes,
+            "embedding_aware",
+            SOLVER_DISPLAY_NAMES["embedding_aware"],
+            SERIES_COLORS["embedding_aware"],
+            clustered.get("apsp"),
+        )
+    )
+    flow_series.append(
+        _series_summary(
+            sizes,
+            "embedding_aware",
+            SOLVER_DISPLAY_NAMES["embedding_aware"],
+            SERIES_COLORS["embedding_aware"],
+            clustered.get("flow"),
+        )
+    )
+
+    scalability_series = [
+        _series_summary(
+            sizes,
+            "global",
+            SOLVER_DISPLAY_NAMES["global"],
+            SERIES_COLORS["global"],
+            global_result.get("qubo_vars"),
+        ),
+        _series_summary(
+            sizes,
+            "embedding_aware_sum",
+            "Cluster MR2S Solver (Ours), subgraph sum",
+            SERIES_COLORS["embedding_aware_sum"],
+            clustered.get("qubo_vars"),
+        ),
+        _series_summary(
+            sizes,
+            "embedding_aware_max",
+            "Cluster MR2S Solver (Ours), subgraph max",
+            SERIES_COLORS["embedding_aware_max"],
+            clustered.get("subgraph_size"),
+        ),
+        _series_summary(
+            sizes,
+            "embedding_aware_avg",
+            "Cluster MR2S Solver (Ours), subgraph avg",
+            SERIES_COLORS["embedding_aware_avg"],
+            clustered.get("qvars_mean"),
+        ),
+        _series_summary(
+            sizes,
+            "embedding_aware_min",
+            "Cluster MR2S Solver (Ours), subgraph min",
+            SERIES_COLORS["embedding_aware_min"],
+            clustered.get("qvars_min"),
+        ),
+    ]
+
+    spent_time_series = [
+        _series_summary(sizes, "raw_sa", SOLVER_DISPLAY_NAMES["raw_sa"], SERIES_COLORS["raw_sa"], timings.get("raw_sa")),
+    ]
+    for name in BASELINE_MR2S_VARIANTS:
+        key = f"{name}_solve"
+        if key in timings:
+            spent_time_series.append(
+                _series_summary(sizes, name, SOLVER_DISPLAY_NAMES[name], SERIES_COLORS[name], timings.get(key))
+            )
+    spent_time_series.append(
+        _series_summary(
+            sizes,
+            "embedding_aware",
+            SOLVER_DISPLAY_NAMES["embedding_aware"],
+            SERIES_COLORS["embedding_aware"],
+            _sum_series(
+                sizes,
+                timings.get("dnc_embedding_aware_solve", timings.get("clustered_solve")),
+                timings.get("dnc_embedding_aware_embed", timings.get("clustered_embed")),
+            ),
+        )
+    )
+
+    return {
+        "sizes": sizes,
+        "plots": {
+            "apsp_reduction": {
+                "output": "apsp_reduction.png",
+                "y_label": "Normalized APSP (lower is better)",
+                "series": apsp_series,
+            },
+            "flow_stability": {
+                "output": "flow_stability.png",
+                "y_label": "Flow imbalance score (lower is better)",
+                "series": flow_series,
+            },
+            "scalability": {
+                "output": "scalability.png",
+                "y_label": "BQM binary variable count",
+                "series": scalability_series,
+            },
+            "spent_time": {
+                "output": "spent_time.png",
+                "y_label": "Mean runtime (seconds)",
+                "series": spent_time_series,
+            },
+        },
+    }
+
+
 def _plot_results(results: dict[str, Any], output_dir: str) -> None:
     sizes = results["sizes"]
     # Cluster MR2S is the QA-backed embedding-aware DnC series.
@@ -57,11 +262,14 @@ def _plot_results(results: dict[str, Any], output_dir: str) -> None:
     if "embedding_aware" in dnc_strategies:
         dnc_strategies["embedding_aware"] = _cluster_qvar_stats(dnc_strategies["embedding_aware"])
     clustered = dnc_strategies.get("embedding_aware", results["mr2s"])
+    summary = _plot_data_summary(sizes, results, clustered, mr2s_variants)
+    with open(os.path.join(output_dir, "plotted_data_summary.json"), "w") as f:
+        json.dump(summary, f, indent=2)
     plot_apsp_reduction(
         sizes,
         results["random"]["apsp"],
         results["raw_sa"]["apsp"],
-        [],
+        results["global"]["apsp"],
         clustered["apsp"],
         mr2s_variants=mr2s_variants,
         dnc_strategies=dnc_strategies,
@@ -71,7 +279,7 @@ def _plot_results(results: dict[str, Any], output_dir: str) -> None:
         sizes,
         results["random"]["flow"],
         results["raw_sa"]["flow"],
-        [],
+        results["global"]["flow"],
         clustered["flow"],
         mr2s_variants=mr2s_variants,
         dnc_strategies=dnc_strategies,
@@ -98,8 +306,8 @@ def _plot_results(results: dict[str, Any], output_dir: str) -> None:
             sizes,
             timings.get("graph", []),
             timings.get("raw_sa", []),
-            [],
-            [],
+            timings.get("global_solve", []),
+            timings.get("global_embed", []),
             timings.get("clustered_solve", []),
             timings.get("clustered_embed", []),
             timings.get("random", []),
