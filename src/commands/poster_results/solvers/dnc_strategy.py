@@ -121,11 +121,12 @@ class DncStrategySolver(BaseSolver):
 
         try:
             sol_cls = solver_cls.run(graph_cls)
-        except (RuntimeError, ValueError) as exc:
+        except Exception as exc:
             logger.warning(
-                "DnC strategy %s failed for n=%s: %s",
+                "DnC strategy %s failed for n=%s with %s: %s",
                 self.strategy_name,
                 n,
+                type(exc).__name__,
                 exc,
             )
             elapsed = time.monotonic() - start
