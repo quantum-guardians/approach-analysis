@@ -13,7 +13,7 @@
       "series": [
         {
           "key": "raw_sa",
-          "display_name": "Raw SA (Traditional)",
+          "display_name": "SA",
           "color": "#2F6CA3",
           "x": [
             100,
@@ -32,7 +32,7 @@
         },
         {
           "key": "robbin_mr2s",
-          "display_name": "Robbin (Traditional)",
+          "display_name": "Robbin",
           "color": "#5B8CC0",
           "x": [
             100,
@@ -51,7 +51,7 @@
         },
         {
           "key": "iterated_local_search_mr2s",
-          "display_name": "ILS (Traditional)",
+          "display_name": "ILS",
           "color": "#1B4F72",
           "x": [
             100,
@@ -70,7 +70,7 @@
         },
         {
           "key": "embedding_aware",
-          "display_name": "Cluster MR2S Solver (Ours)",
+          "display_name": "Ours",
           "color": "#C43C39",
           "x": [
             100,
@@ -95,7 +95,7 @@
       "series": [
         {
           "key": "raw_sa",
-          "display_name": "Raw SA (Traditional)",
+          "display_name": "SA",
           "color": "#2F6CA3",
           "x": [
             100,
@@ -114,7 +114,7 @@
         },
         {
           "key": "robbin_mr2s",
-          "display_name": "Robbin (Traditional)",
+          "display_name": "Robbin",
           "color": "#5B8CC0",
           "x": [
             100,
@@ -133,7 +133,7 @@
         },
         {
           "key": "iterated_local_search_mr2s",
-          "display_name": "ILS (Traditional)",
+          "display_name": "ILS",
           "color": "#1B4F72",
           "x": [
             100,
@@ -152,7 +152,7 @@
         },
         {
           "key": "embedding_aware",
-          "display_name": "Cluster MR2S Solver (Ours)",
+          "display_name": "Ours",
           "color": "#C43C39",
           "x": [
             100,
@@ -177,7 +177,7 @@
       "series": [
         {
           "key": "global",
-          "display_name": "Global MR2S Solver",
+          "display_name": "Mono",
           "color": "#4B5563",
           "x": [
             100,
@@ -196,7 +196,7 @@
         },
         {
           "key": "embedding_aware_sum",
-          "display_name": "Cluster MR2S Solver (Ours), subgraph sum",
+          "display_name": "Cluster sum",
           "color": "#C43C39",
           "x": [
             100,
@@ -215,7 +215,7 @@
         },
         {
           "key": "embedding_aware_max",
-          "display_name": "Cluster MR2S Solver (Ours), subgraph max",
+          "display_name": "Cluster max",
           "color": "#E06B65",
           "x": [
             100,
@@ -234,7 +234,7 @@
         },
         {
           "key": "embedding_aware_avg",
-          "display_name": "Cluster MR2S Solver (Ours), subgraph avg",
+          "display_name": "Cluster avg",
           "color": "#D98D89",
           "x": [
             100,
@@ -253,7 +253,7 @@
         },
         {
           "key": "embedding_aware_min",
-          "display_name": "Cluster MR2S Solver (Ours), subgraph min",
+          "display_name": "Cluster min",
           "color": "#F0B7B2",
           "x": [
             100,
@@ -278,7 +278,7 @@
       "series": [
         {
           "key": "raw_sa",
-          "display_name": "Raw SA (Traditional)",
+          "display_name": "SA",
           "color": "#2F6CA3",
           "x": [
             100,
@@ -297,7 +297,7 @@
         },
         {
           "key": "robbin_mr2s",
-          "display_name": "Robbin (Traditional)",
+          "display_name": "Robbin",
           "color": "#5B8CC0",
           "x": [
             100,
@@ -316,7 +316,7 @@
         },
         {
           "key": "iterated_local_search_mr2s",
-          "display_name": "ILS (Traditional)",
+          "display_name": "ILS",
           "color": "#1B4F72",
           "x": [
             100,
@@ -335,7 +335,7 @@
         },
         {
           "key": "embedding_aware",
-          "display_name": "Cluster MR2S Solver (Ours)",
+          "display_name": "Ours",
           "color": "#C43C39",
           "x": [
             100,

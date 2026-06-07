@@ -31,11 +31,18 @@ PUBLICATION_MARKERS = {
     "global": "P",
 }
 SOLVER_DISPLAY_NAMES = {
-    "raw_sa": "Raw SA (Traditional)",
-    "robbin_mr2s": "Robbin (Traditional)",
-    "iterated_local_search_mr2s": "ILS (Traditional)",
-    "embedding_aware": "Cluster MR2S Solver (Ours)",
+    "raw_sa": "SA",
+    "robbin_mr2s": "Robbin",
+    "iterated_local_search_mr2s": "ILS",
+    "embedding_aware": "Ours",
     "global": "Global MR2S Solver",
+}
+BQM_DISPLAY_NAMES = {
+    "global": "Mono",
+    "embedding_aware_sum": "Cluster sum",
+    "embedding_aware_max": "Cluster max",
+    "embedding_aware_avg": "Cluster avg",
+    "embedding_aware_min": "Cluster min",
 }
 DNC_STRATEGY_STYLES = {
     "poster": ("D-", PUBLICATION_COLORS["ours_light"], "DnC poster"),
@@ -141,9 +148,9 @@ def _plot_series(
             color=item["color"],
             marker=item.get("marker", "o"),
             linestyle=item.get("linestyle", "-"),
-            linewidth=2.25,
-            markersize=5.2,
-            markeredgewidth=0.8,
+            linewidth=3.0,
+            markersize=7.0,
+            markeredgewidth=1.0,
             markeredgecolor="white",
             alpha=item.get("alpha", 0.95),
         )
@@ -203,7 +210,7 @@ def _publication_line_figure(
         framealpha=0.92,
         facecolor="white",
         edgecolor="#E5E7EB",
-        fontsize=9.5,
+        fontsize=12,
     )
 
     if save_path:
@@ -649,7 +656,7 @@ def plot_preprocessing_scalability(
         _solver_series(
             sizes,
             "global",
-            SOLVER_DISPLAY_NAMES["global"],
+            BQM_DISPLAY_NAMES["global"],
             PUBLICATION_COLORS["global"],
             global_vars,
             PUBLICATION_MARKERS["global"],
@@ -657,7 +664,7 @@ def plot_preprocessing_scalability(
         _solver_series(
             sizes,
             "embedding_aware_sum",
-            "Cluster MR2S Solver (Ours), subgraph sum",
+            BQM_DISPLAY_NAMES["embedding_aware_sum"],
             PUBLICATION_COLORS["ours"],
             cluster_section.get("qubo_vars", clustered_vars),
             "D",
@@ -665,7 +672,7 @@ def plot_preprocessing_scalability(
         _solver_series(
             sizes,
             "embedding_aware_max",
-            "Cluster MR2S Solver (Ours), subgraph max",
+            BQM_DISPLAY_NAMES["embedding_aware_max"],
             PUBLICATION_COLORS["ours_light"],
             cluster_section.get("subgraph_size", clustered_sg),
             "^",
@@ -673,7 +680,7 @@ def plot_preprocessing_scalability(
         _solver_series(
             sizes,
             "embedding_aware_avg",
-            "Cluster MR2S Solver (Ours), subgraph avg",
+            BQM_DISPLAY_NAMES["embedding_aware_avg"],
             "#D98D89",
             cluster_section.get("qvars_mean", clustered_physical_mean),
             "o",
@@ -681,7 +688,7 @@ def plot_preprocessing_scalability(
         _solver_series(
             sizes,
             "embedding_aware_min",
-            "Cluster MR2S Solver (Ours), subgraph min",
+            BQM_DISPLAY_NAMES["embedding_aware_min"],
             "#F0B7B2",
             cluster_section.get("qvars_min", clustered_physical_min),
             "v",

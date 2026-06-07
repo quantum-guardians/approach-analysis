@@ -524,7 +524,14 @@ def test_plot_results_writes_publication_series_summary(tmp_path, monkeypatch) -
         "embedding_aware_avg",
         "embedding_aware_min",
     ]
-    assert summary["plots"]["apsp_reduction"]["series"][1]["display_name"] == "Cluster MR2S Solver (Ours)"
+    assert [item["display_name"] for item in summary["plots"]["scalability"]["series"]] == [
+        "Mono",
+        "Cluster sum",
+        "Cluster max",
+        "Cluster avg",
+        "Cluster min",
+    ]
+    assert summary["plots"]["apsp_reduction"]["series"][1]["display_name"] == "Ours"
     assert summary["plots"]["apsp_reduction"]["series"][1]["color"] == pr_plotting.SERIES_COLORS["embedding_aware"]
     assert summary["plots"]["spent_time"]["series"][1]["y"] == [2.2, 3.3]
     assert captured["apsp"] == ([100, 200], [3.0, 4.0])

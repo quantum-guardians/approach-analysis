@@ -8,6 +8,7 @@ import os
 from typing import Any
 
 from src.visualizer import (
+    BQM_DISPLAY_NAMES,
     PUBLICATION_COLORS,
     SOLVER_DISPLAY_NAMES,
     plot_apsp_reduction,
@@ -170,35 +171,35 @@ def _plot_data_summary(
         _series_summary(
             sizes,
             "global",
-            SOLVER_DISPLAY_NAMES["global"],
+            BQM_DISPLAY_NAMES["global"],
             SERIES_COLORS["global"],
             global_result.get("qubo_vars"),
         ),
         _series_summary(
             sizes,
             "embedding_aware_sum",
-            "Cluster MR2S Solver (Ours), subgraph sum",
+            BQM_DISPLAY_NAMES["embedding_aware_sum"],
             SERIES_COLORS["embedding_aware_sum"],
             clustered.get("qubo_vars"),
         ),
         _series_summary(
             sizes,
             "embedding_aware_max",
-            "Cluster MR2S Solver (Ours), subgraph max",
+            BQM_DISPLAY_NAMES["embedding_aware_max"],
             SERIES_COLORS["embedding_aware_max"],
             clustered.get("subgraph_size"),
         ),
         _series_summary(
             sizes,
             "embedding_aware_avg",
-            "Cluster MR2S Solver (Ours), subgraph avg",
+            BQM_DISPLAY_NAMES["embedding_aware_avg"],
             SERIES_COLORS["embedding_aware_avg"],
             clustered.get("qvars_mean"),
         ),
         _series_summary(
             sizes,
             "embedding_aware_min",
-            "Cluster MR2S Solver (Ours), subgraph min",
+            BQM_DISPLAY_NAMES["embedding_aware_min"],
             SERIES_COLORS["embedding_aware_min"],
             clustered.get("qvars_min"),
         ),
