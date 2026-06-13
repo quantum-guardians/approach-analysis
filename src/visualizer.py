@@ -8,6 +8,9 @@ strongly-connected orientation ratios across multiple graphs.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+from functools import lru_cache
 from typing import Any, Sequence
 
 import numpy as np
@@ -53,6 +56,50 @@ MR2S_VARIANT_STYLES = {
     "robbin_mr2s": ("s-", PUBLICATION_COLORS["traditional_robbin"], SOLVER_DISPLAY_NAMES["robbin_mr2s"]),
     "iterated_local_search_mr2s": ("^-", PUBLICATION_COLORS["traditional_ils"], SOLVER_DISPLAY_NAMES["iterated_local_search_mr2s"]),
 }
+POSTER_FONT_SIZE = 13
+POSTER_FIGSIZE = (5, 4)
+POSTER_BROKEN_AXIS_FIGSIZE = (5, 4.6)
+
+
+@lru_cache(maxsize=1)
+def _latex_is_available() -> bool:
+    if not shutil.which("latex") or not shutil.which("kpsewhich"):
+        return False
+    required_packages = ("type1cm.sty", "type1ec.sty", "mathptmx.sty")
+    for package in required_packages:
+        result = subprocess.run(
+            ["kpsewhich", package],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return False
+    return True
+
+
+def _poster_rc_params() -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "axes.linewidth": 1.5,
+        "font.family": "serif",
+        "font.weight": "bold",
+        "axes.labelweight": "bold",
+        "axes.titleweight": "bold",
+    }
+    if _latex_is_available():
+        params.update(
+            {
+                "text.usetex": True,
+                "text.latex.preamble": "\n".join(
+                    [
+                        r"\usepackage{amsmath}",
+                        r"\usepackage{bm}",
+                        r"\usepackage{mathptmx}",
+                    ]
+                ),
+            }
+        )
+    return params
 
 
 def _aligned_values(sizes: Sequence[int], values: Sequence[float] | None) -> list[float]:
@@ -74,12 +121,10 @@ def _finite_values(series: Sequence[dict[str, Any]]) -> list[float]:
 
 
 def _publication_style_axes(ax: plt.Axes) -> None:
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_color("#6B7280")
-    ax.spines["bottom"].set_color("#6B7280")
-    ax.tick_params(axis="both", labelsize=10, colors="#374151", width=0.8)
-    ax.grid(True, color="#D1D5DB", linestyle="-", linewidth=0.7, alpha=0.45)
+    ax.tick_params(axis="both", labelsize=POSTER_FONT_SIZE, width=1.2)
+    ax.grid(which="major", linestyle="-", linewidth=0.9, alpha=0.3)
+    ax.minorticks_on()
+    ax.grid(which="minor", linestyle="dotted", linewidth=1, alpha=0.7, zorder=0)
     ax.set_axisbelow(True)
 
 
@@ -130,7 +175,7 @@ def _sum_aligned_values(
 
 def _draw_break_marks(lower_ax: plt.Axes, upper_ax: plt.Axes) -> None:
     kwargs = dict(marker=[(-1, -0.5), (1, 0.5)], markersize=9, linestyle="none",
-                  color="#4B5563", mec="#4B5563", mew=0.9, clip_on=False)
+                  color="black", mec="black", mew=0.9, clip_on=False)
     upper_ax.plot([0, 1], [0, 0], transform=upper_ax.transAxes, **kwargs)
     lower_ax.plot([0, 1], [1, 1], transform=lower_ax.transAxes, **kwargs)
 
@@ -148,10 +193,8 @@ def _plot_series(
             color=item["color"],
             marker=item.get("marker", "o"),
             linestyle=item.get("linestyle", "-"),
-            linewidth=3.0,
-            markersize=7.0,
-            markeredgewidth=1.0,
-            markeredgecolor="white",
+            linewidth=2.0,
+            markersize=8.0,
             alpha=item.get("alpha", 0.95),
         )
 
@@ -165,57 +208,62 @@ def _publication_line_figure(
     save_path: str | None,
     use_axis_break: bool = True,
     yscale: str = "linear",
+    legend_loc: str = "best",
+    legend_bbox_to_anchor: tuple[float, float] | None = None,
+    legend_on_main_axis: bool = False,
+    ylabel_x: float = 0.02,
+    layout_rect: tuple[float, float, float, float] | None = None,
 ) -> plt.Figure:
-    values = _finite_values(series)
-    limits = _axis_break_limits(values) if use_axis_break else None
+    with plt.rc_context(_poster_rc_params()):
+        values = _finite_values(series)
+        limits = _axis_break_limits(values) if use_axis_break else None
 
-    if limits is None:
-        fig, ax = plt.subplots(figsize=(7.2, 4.6), constrained_layout=True)
-        axes = [ax]
-    else:
-        fig, (upper_ax, lower_ax) = plt.subplots(
-            2,
-            1,
-            figsize=(7.2, 5.2),
-            sharex=True,
-            constrained_layout=True,
-            gridspec_kw={"height_ratios": [1.0, 2.8], "hspace": 0.06},
+        if limits is None:
+            fig, ax = plt.subplots(figsize=POSTER_FIGSIZE)
+            axes = [ax]
+        else:
+            fig, (upper_ax, lower_ax) = plt.subplots(
+                2,
+                1,
+                figsize=POSTER_BROKEN_AXIS_FIGSIZE,
+                sharex=True,
+                gridspec_kw={"height_ratios": [1.0, 2.8], "hspace": 0.08},
+            )
+            axes = [upper_ax, lower_ax]
+
+        for ax in axes:
+            _plot_series(ax, sizes, series)
+            ax.set_yscale(yscale)
+            _publication_style_axes(ax)
+
+        if limits is not None:
+            lower_bottom, lower_top, upper_bottom, upper_top = limits
+            upper_ax, lower_ax = axes
+            upper_ax.set_ylim(upper_bottom, upper_top)
+            lower_ax.set_ylim(lower_bottom, lower_top)
+            upper_ax.spines["bottom"].set_visible(False)
+            lower_ax.spines["top"].set_visible(False)
+            upper_ax.tick_params(labelbottom=False, bottom=False)
+            _draw_break_marks(lower_ax, upper_ax)
+            ax = lower_ax
+        else:
+            ax = axes[0]
+
+        axes[0].set_title(title, fontsize=POSTER_FONT_SIZE, fontweight="bold", pad=10)
+        ax.set_xlabel("Graph size (vertices)", fontsize=POSTER_FONT_SIZE)
+        fig.supylabel(ylabel, fontsize=POSTER_FONT_SIZE, x=ylabel_x)
+        legend_ax = ax if legend_on_main_axis else axes[0]
+        legend_ax.legend(
+            fontsize=POSTER_FONT_SIZE - 1,
+            loc=legend_loc,
+            bbox_to_anchor=legend_bbox_to_anchor,
+            borderaxespad=0.0,
         )
-        axes = [upper_ax, lower_ax]
+        fig.tight_layout(rect=layout_rect)
 
-    for ax in axes:
-        _plot_series(ax, sizes, series)
-        ax.set_yscale(yscale)
-        _publication_style_axes(ax)
-
-    if limits is not None:
-        lower_bottom, lower_top, upper_bottom, upper_top = limits
-        upper_ax, lower_ax = axes
-        upper_ax.set_ylim(upper_bottom, upper_top)
-        lower_ax.set_ylim(lower_bottom, lower_top)
-        upper_ax.spines["bottom"].set_visible(False)
-        lower_ax.spines["top"].set_visible(False)
-        upper_ax.tick_params(labelbottom=False, bottom=False)
-        _draw_break_marks(lower_ax, upper_ax)
-        ax = lower_ax
-    else:
-        ax = axes[0]
-
-    axes[0].set_title(title, fontsize=13, fontweight="semibold", pad=10, color="#111827")
-    ax.set_xlabel("Graph size (vertices)", fontsize=11, color="#111827")
-    fig.supylabel(ylabel, fontsize=11, color="#111827")
-    axes[0].legend(
-        loc="best",
-        frameon=True,
-        framealpha=0.92,
-        facecolor="white",
-        edgecolor="#E5E7EB",
-        fontsize=12,
-    )
-
-    if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches="tight")
-    return fig
+        if save_path:
+            fig.savefig(save_path, dpi=600, bbox_inches="tight")
+        return fig
 
 
 def _solver_series(
@@ -568,6 +616,9 @@ def plot_apsp_reduction(
         ylabel="Normalized APSP (lower is better)",
         title="APSP Objective by Solver",
         save_path=save_path,
+        legend_loc="upper left",
+        legend_bbox_to_anchor=(0.02, 0.98),
+        legend_on_main_axis=True,
     )
 
 
@@ -623,6 +674,11 @@ def plot_flow_stability(
         ylabel="Flow imbalance score (lower is better)",
         title="Flow Stability by Solver",
         save_path=save_path,
+        legend_loc="upper left",
+        legend_bbox_to_anchor=(0.02, 0.98),
+        legend_on_main_axis=True,
+        ylabel_x=-0.10,
+        layout_rect=(0.22, 0.0, 1.0, 1.0),
     )
 
 
