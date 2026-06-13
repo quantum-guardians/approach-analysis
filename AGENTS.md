@@ -19,3 +19,4 @@ Add or update pytest coverage for every behavior change. Name new tests `test_<b
 
 ## Commit & Pull Request Guidelines
 Recent history uses short, imperative Conventional Commit prefixes such as `feat:` and occasional focused refactor commits. Keep commit subjects concise and specific, for example `feat: add adaptive chunk sizing`. Pull requests should explain the user-visible or research-impacting change, list validation performed, and include sample output paths or plots when a visualization changes.
+Use branch names in the `<tag>/<issue num>` format, for example `feat/30` or `fix/31`.
