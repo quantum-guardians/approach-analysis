@@ -137,7 +137,8 @@ python main.py face-k-analysis \
 ### `poster-results` – MR2S poster solver 비교
 
 Raw SA, Global QUBO, MR2S 변형 solver, DnC MR2S, random baseline을 같은 Delaunay 그래프에서 비교합니다.
-DnC MR2S는 `mr2s-module==0.1.4`의 `graph_partition_strategy` hook을 사용하며,
+poster용 그래프는 Delaunay 그래프에서 간선의 50%를 제거하되 쌍연결성(biconnectivity)은 유지합니다.
+DnC MR2S는 `mr2s-module==0.1.6`의 `graph_partition_strategy` hook을 사용하며,
 현재 결과에는 다음 MR2S 변형과 DnC partition strategy가 같은 solver 비교 그래프 안에 함께 표시됩니다.
 
 | MR2S variant | 설명 |
@@ -161,6 +162,12 @@ python main.py poster-results \
 # cache를 사용해 누락된 size만 계산하고 기존 poster_results.json과 병합
 python main.py poster-results --sizes 5 10 20 --output-dir results/poster
 
+# 다른 solver cache는 유지하고 Raw SA만 다시 계산
+python main.py poster-results \
+    --sizes 5 10 20 \
+    --output-dir results/poster \
+    --refresh-algorithms raw_sa
+
 # 기존 결과의 MR2S/DnC 결과만 다시 계산해 병합
 python main.py poster-results \
     --sizes 5 10 20 \
@@ -179,6 +186,7 @@ python main.py poster-results \
 | `--num-workers` | CPU 기반 자동값 | trial 병렬 실행 process 수. 0이면 순차 실행 |
 | `--cache-dir` | `<output-dir>/poster_trial_cache` | trial cache 디렉토리 |
 | `--no-cache` | False | trial cache 읽기/쓰기를 끄고 재계산 |
+| `--refresh-algorithms` | 없음 | 지정한 solver cache만 무시하고 다시 계산한 뒤 덮어쓰기 |
 | `--mr2s-only` | False | 기존 결과를 유지하고 MR2S/DnC 결과만 다시 계산 |
 | `--source-results` | `<output-dir>/poster_results.json` | `--mr2s-only` 병합 기준 결과 파일 |
 

@@ -139,7 +139,7 @@ def test_poster_trial_cache_key_is_stable() -> None:
     key = pr._poster_trial_cache_key(n=20, trial=3, seed=42)
     assert key == (
         'poster-results-trial:{"n": 20, "seed": 42, '
-        '"trial": 3, "version": 5}'
+        '"trial": 3, "version": 6}'
     )
 
 
@@ -180,6 +180,32 @@ def test_run_reuses_poster_trial_cache(tmp_path, monkeypatch) -> None:
     call_count = 0
     pr.run(**kwargs)
     assert call_count == 0
+
+
+def test_run_refreshes_only_selected_algorithm(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(pr_cli, "_plot_results", lambda results, output_dir: None)
+
+    calls: list[str] = []
+
+    def counted_algorithm(n, trial, seed, algorithm):
+        calls.append(algorithm)
+        return _fake_algorithm(n, trial, seed, algorithm)
+
+    monkeypatch.setattr(pr._solver_helpers, "_run_poster_algorithm", counted_algorithm)
+
+    kwargs = dict(
+        sizes=[8],
+        num_graphs=2,
+        seed=0,
+        output_dir=str(tmp_path),
+        num_workers=0,
+    )
+    pr.run(**kwargs)
+    calls.clear()
+
+    pr.run(**kwargs, refresh_algorithms=("raw_sa",))
+
+    assert calls == ["raw_sa", "raw_sa"]
 
 
 def test_run_migrates_legacy_full_trial_cache_to_solver_cache(tmp_path, monkeypatch) -> None:
@@ -233,6 +259,7 @@ def test_run_reuses_existing_aggregate_results_for_all_solvers(tmp_path, monkeyp
 
     existing = {
         "sizes": [8],
+        "graph_removal_pct": 0.0,
         "mr2s": {
             "apsp": [80.0],
             "flow": [81.0],
@@ -568,6 +595,7 @@ def test_run_mr2s_trial_records_graph_generation_time(monkeypatch) -> None:
 def test_run_mr2s_only_merges_with_existing_results(tmp_path, monkeypatch) -> None:
     existing = {
         "sizes": [8],
+        "graph_removal_pct": 0.0,
         "mr2s": {},
         "global": {"apsp": [1.0], "flow": [2.0]},
         "raw_sa": {"apsp": [3.0], "flow": [4.0]},
@@ -611,6 +639,7 @@ def test_run_mr2s_only_merges_with_existing_results(tmp_path, monkeypatch) -> No
 def test_run_mr2s_only_preserves_unrequested_existing_sizes(tmp_path, monkeypatch) -> None:
     existing = {
         "sizes": [8, 9],
+        "graph_removal_pct": 0.0,
         "mr2s": {
             "apsp": [18.0, 19.0],
             "flow": [28.0, 29.0],
