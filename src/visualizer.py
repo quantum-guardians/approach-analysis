@@ -288,6 +288,7 @@ def plot_score_correlations(
     nhop_counts: dict[int, Sequence[int]],
     title: str = "Score Correlations",
     save_path: str | None = None,
+    poster: bool = False,
 ) -> plt.Figure:
     """Draw scatter plots correlating APSP sum with each n-hop neighbour count.
 
@@ -301,6 +302,8 @@ def plot_score_correlations(
         title: Super-title displayed above the figure.
         save_path: If provided, the figure is saved to this file path instead
             of being displayed interactively.
+        poster: When True, render with the publication style used by the
+            poster figures (serif bold, styled axes, team palette).
 
     Returns:
         The :class:`matplotlib.figure.Figure` that was created.
@@ -308,23 +311,41 @@ def plot_score_correlations(
     hops = sorted(nhop_counts.keys())
     n_plots = len(hops)
 
-    fig = plt.figure(figsize=(5 * n_plots, 4))
-    fig.suptitle(title, fontsize=14)
-    gs = gridspec.GridSpec(1, n_plots, figure=fig)
+    rc = _poster_rc_params() if poster else {}
+    with plt.rc_context(rc):
+        fig = plt.figure(figsize=(5 * n_plots, 4))
+        if not poster:
+            fig.suptitle(title, fontsize=14)
+        gs = gridspec.GridSpec(1, n_plots, figure=fig)
 
-    for idx, hop in enumerate(hops):
-        ax = fig.add_subplot(gs[0, idx])
-        ax.scatter(apsp_sums, nhop_counts[hop], alpha=0.6, edgecolors="none", s=20)
-        ax.set_xlabel("APSP sum")
-        ax.set_ylabel(f"{hop}-hop neighbour count")
-        ax.set_title(f"APSP vs {hop}-hop")
+        for idx, hop in enumerate(hops):
+            ax = fig.add_subplot(gs[0, idx])
+            if poster:
+                ax.scatter(
+                    apsp_sums,
+                    nhop_counts[hop],
+                    alpha=0.55,
+                    edgecolors="none",
+                    s=42,
+                    color=PUBLICATION_COLORS["traditional_raw"],
+                )
+                _publication_style_axes(ax)
+                ax.grid(True, linestyle=":", alpha=0.6)
+                ax.set_title(f"{hop}-hop", fontsize=15)
+            else:
+                ax.scatter(
+                    apsp_sums, nhop_counts[hop], alpha=0.6, edgecolors="none", s=20
+                )
+                ax.set_title(f"APSP vs {hop}-hop")
+            ax.set_xlabel("APSP sum")
+            ax.set_ylabel(f"{hop}-hop pair count" if poster else f"{hop}-hop neighbour count")
 
-    fig.tight_layout()
+        fig.tight_layout()
 
-    if save_path is not None:
-        fig.savefig(save_path, dpi=150)
-    else:
-        plt.show()
+        if save_path is not None:
+            fig.savefig(save_path, dpi=200, bbox_inches="tight")
+        else:
+            plt.show()
 
     return fig
 
