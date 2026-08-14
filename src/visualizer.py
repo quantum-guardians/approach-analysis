@@ -819,3 +819,54 @@ def plot_spent_time(
         save_path=save_path,
         use_axis_break=False,
     )
+
+
+def plot_qubo_structure(
+    summary: dict[str, Any],
+    title: str = "QUBO structure and hop-length ablation",
+    save_path: str | None = None,
+) -> plt.Figure:
+    """Draw coupling count, coefficient spread, and ablation quality.
+
+    Three panels are produced, all against graph size:
+
+    1. quadratic couplings per binary variable,
+    2. the ratio of the largest to the smallest absolute coefficient,
+    3. the flow-imbalance score of each arm.
+
+    Args:
+        summary: Aggregate produced by
+            :func:`src.commands.qubo_structure.summarise`, i.e. a mapping with
+            ``sizes`` and ``arms`` keys.
+        title: Super-title displayed above the figure.
+        save_path: If provided, the figure is saved to this path instead of
+            being displayed interactively.
+
+    Returns:
+        The :class:`matplotlib.figure.Figure` that was created.
+    """
+    sizes = summary["sizes"]
+    arms = summary["arms"]
+
+    panels = (
+        ("couplings_per_variable", "Couplings per variable"),
+        ("coefficient_ratio", "Max / min |coefficient|"),
+        ("flow_score", "Flow imbalance score"),
+    )
+    fig, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4))
+
+    for ax, (field, ylabel) in zip(axes, panels):
+        for arm, series in sorted(arms.items()):
+            ax.plot(sizes, series[field], marker="o", label=arm)
+        ax.set_xlabel("Graph size (vertices)")
+        ax.set_ylabel(ylabel)
+        ax.grid(True, linestyle=":", alpha=0.6)
+        ax.legend()
+
+    fig.suptitle(title)
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+    return fig
