@@ -39,6 +39,7 @@ def run(
     min_samples: int = 0,
     use_processes: bool = False,
     adaptive_chunk_size: bool = False,
+    poster: bool = False,
 ) -> None:
     """Generate a graph, find SC orientations, and plot APSP vs n-hop counts."""
     graph = generate_graph(num_vertices, connectivity, seed=seed)
@@ -140,6 +141,7 @@ def run(
         nhop_counts,
         title=title,
         save_path=save_path,
+        poster=poster,
     )
     print(f"{'Partial ' if interrupted else ''}Plot saved to: {os.path.abspath(save_path)}")
 
@@ -199,6 +201,10 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:  # type: ig
              "If omitted, defaults to result_v{vertices}_c{connectivity}.png."
     )
     p.add_argument(
+        "--poster", action="store_true",
+        help="Render with the publication style used by the poster figures."
+    )
+    p.add_argument(
         "--max-samples", type=int, default=None,
         help="Use random sampling instead of exhaustive search. "
              "Yield at most this many strongly-connected orientations "
@@ -226,4 +232,5 @@ def _dispatch(args: argparse.Namespace) -> None:
         args.min_samples,
         args.processes,
         args.adaptive_chunk_size,
+        args.poster,
     )
