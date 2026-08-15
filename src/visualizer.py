@@ -872,7 +872,7 @@ def plot_qubo_structure(
     panels = (
         ("couplings_per_variable", "Couplings per variable"),
         ("coefficient_ratio", "Max / min |coefficient|"),
-        ("flow_score", "Flow imbalance score"),
+        ("apsp_sum", "Directed APSP sum"),
     )
     fig, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4))
 
