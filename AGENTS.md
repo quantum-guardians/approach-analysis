@@ -21,6 +21,10 @@ For tracked Git work, follow:
 - `.agents/docs/commit.md`
 - `.agents/docs/pull-request.md`
 
+For published releases, follow:
+
+- `.agents/docs/release.md`
+
 Use project-local skills when installed and applicable. Skill instructions define
 their own triggers, formats, and output paths.
 
@@ -43,6 +47,7 @@ Run the default single-graph analysis with `python main.py analyse`.
 Run connectivity sampling with `python main.py nhop-connectivity --vertices 5 --num-graphs 20 --num-orientations 200`.
 Run the larger face-cycle experiment with `python main.py face-k-analysis --output-dir results/face_k_analysis`.
 Run the poster solver comparison with `python main.py poster-results --sizes 5 10 20 --output-dir results/poster --no-cache`.
+`poster-batch` needs a Redis queue and an S3 bucket; copy `.env.example` and fill it before running the worker or collector.
 Use `--seed <int>` for any experiment that should be reproducible.
 
 ## Coding Style & Naming Conventions
