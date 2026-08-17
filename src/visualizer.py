@@ -643,6 +643,42 @@ def plot_apsp_reduction(
     )
 
 
+def plot_apsp_stretch(
+    sizes: list[int],
+    series: list[dict[str, Any]],
+    save_path: str | None = None,
+) -> plt.Figure:
+    """Plot the size-invariant APSP stretch ``D_avg / Dbar_avg``; lower is better.
+
+    Each entry of *series* carries ``key``, ``display_name``, ``color`` and the
+    stretch values ``y`` (``None`` where the solver produced no strongly
+    connected orientation).  A value of 1.0 means orientation preserved the
+    undirected walking distances exactly.
+    """
+    plot_series = [
+        _solver_series(
+            sizes,
+            entry["key"],
+            entry.get("display_name", entry["key"]),
+            entry.get("color", PUBLICATION_COLORS["global"]),
+            entry["y"],
+            PUBLICATION_MARKERS.get(entry["key"], "o"),
+        )
+        for entry in series
+    ]
+    return _publication_line_figure(
+        sizes,
+        plot_series,
+        ylabel="APSP stretch $D_{avg}/\\bar{D}_{avg}$ (lower is better)",
+        title="APSP Stretch by Solver",
+        save_path=save_path,
+        use_axis_break=False,
+        legend_loc="upper left",
+        legend_bbox_to_anchor=(0.02, 0.98),
+        legend_on_main_axis=True,
+    )
+
+
 def plot_flow_stability(
     sizes: list[int],
     random_flow: list[float],
