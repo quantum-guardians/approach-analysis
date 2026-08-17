@@ -20,6 +20,7 @@ import argparse
 
 from src.commands import (
     analyse,
+    apsp_stretch,
     nhop_connectivity,
     face_k_analysis,
     poster_results,
@@ -49,6 +50,7 @@ def main() -> None:
     poster_results.register_parser(subparsers)
     poster_batch.register_parser(subparsers)
     qubo_structure.register_parser(subparsers)
+    apsp_stretch.register_parser(subparsers)
 
     args = parser.parse_args()
     configure_logging(args.log_level, force=True)

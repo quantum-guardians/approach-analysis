@@ -24,7 +24,7 @@ pip install -r requirements.txt
 
 ## 사용법 (Usage)
 
-`main.py`는 `analyse`, `nhop-connectivity`, `face-k-analysis`, `poster-results`, `poster-batch` 서브 커맨드를 제공합니다.
+`main.py`는 `analyse`, `nhop-connectivity`, `face-k-analysis`, `poster-results`, `apsp-stretch`, `poster-batch` 서브 커맨드를 제공합니다.
 
 ### `analyse` – 단일 그래프의 APSP·n-hop 상관관계 분석
 
@@ -192,6 +192,51 @@ embed timing은 plot에는 넣지 않지만 JSON의 `timings` 섹션에는 보�
 - `flow_stability.png` – Random / Raw SA / Global / MR2S 변형 / DnC strategy별 flow imbalance 비교
 - `scalability.png` – Global QUBO와 DnC strategy별 QUBO 변수·subgraph·physical qubit 비교
 - `spent_time.png` – graph generation, Raw SA, Global solve, MR2S 변형, DnC strategy별 solve time, random baseline 비교
+
+---
+
+### `apsp-stretch` – poster APSP 그래프를 크기 불변 stretch로 다시 그리기
+
+`poster-results`가 기록하는 `apsp` 값은 `APSP_sum / (n*(n-1))`, 즉 순서쌍 수로만 나눈
+평균 유향 거리 `D_avg`입니다. `apsp_reduction.png`의 축 이름은 "Normalized APSP"지만
+이 값은 그래프가 커지면 같이 커지므로 size 간 비교에는 쓸 수 없습니다.
+
+`apsp-stretch`는 같은 `D_avg`를 무방향 기준 거리 `D̄_avg`로 나눠 size 불변 stretch로 다시 그립니다.
+`D̄_avg`는 각 Delaunay 인스턴스를 seed로 재생성해 정확히 계산합니다
+(인스턴스 seed 규칙은 `poster-results`와 동일한 `seed + 100*trial + size`).
+
+이 값은 논문 식 `F_dist = 1/(n(n-1)) * Σ D_st/D̄_st`(쌍별 비율의 평균)가 아니라
+평균의 비율입니다. 정확한 `F_dist`를 계산하려면 각 solver가 만든 방향(orientation)이 필요한데,
+poster cache의 `directed_edges`에는 방향이 아니라 무방향 간선 목록이 저장되어 있어
+기존 산출물만으로는 복원할 수 없습니다. Robbins 계열 방향에서 측정한 결과
+평균의 비율은 정확한 `F_dist`보다 약 4~10% 낮게 나옵니다.
+
+```bash
+# 기본: results/poster_results_v2/plotted_data_summary.json을 변환
+python main.py apsp-stretch
+
+# 다른 실행 결과를 변환하고 size를 골라 그리기
+python main.py apsp-stretch \
+    --input results/poster_final_official_v5/plotted_data_summary.json \
+    --sizes 100 300 500 \
+    --seed 42 \
+    --output-dir results/apsp_stretch
+```
+
+#### `apsp-stretch` CLI 옵션
+
+| 옵션 | 기본값 | 설명 |
+|---|---|---|
+| `--input` | `results/poster_results_v2/plotted_data_summary.json` | 변환할 `plotted_data_summary.json` 경로 |
+| `--sizes` | 입력의 모든 size | 그릴 정점 수 부분집합 |
+| `--trials` | 3 | 무방향 기준 거리 계산에 쓸 size별 인스턴스 수 |
+| `--seed` | 42 | 변환 대상 실행의 base seed (인스턴스 seed = `seed + 100*trial + size`) |
+| `--output-dir` | `results/apsp_stretch` | 그림과 JSON 기록 저장 경로 |
+
+출력물:
+
+- `apsp_stretch.png` – solver별 stretch `D_avg / D̄_avg` 비교
+- `apsp_stretch.json` – size별 `D̄_avg`(trial별 값과 seed 포함), solver별 stretch와 원본 `D_avg`
 
 ---
 
