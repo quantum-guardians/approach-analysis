@@ -8,7 +8,11 @@ from typing import Any
 import networkx as nx
 
 from src.cache import generate_cache_key
-from .cache import CachedPosterAlgorithmWorker, CachedSplitTrialWorker
+from .cache import (
+    FULL_TRIAL_ALGORITHMS,
+    CachedPosterAlgorithmWorker,
+    CachedSplitTrialWorker,
+)
 from .models import (
     Mr2sTrialResult,
     PosterTrialResult,
@@ -39,7 +43,7 @@ from .partition_strategy import (
 from . import solvers as _solver_helpers
 from src.score_calculator import calculate_apsp_sum_and_nhop_neighbor_counts
 
-POSTER_CACHE_VERSION = 5
+POSTER_CACHE_VERSION = 6
 TrialTask = tuple[int, int, int | None, str | None]
 
 
@@ -132,14 +136,21 @@ def _run_algorithm_worker(n: int, trial: int, seed: int | None, algorithm: str) 
     return _solver_helpers._run_poster_algorithm(n, trial, seed, algorithm)
 
 
-_run_trial_with_cache = CachedSplitTrialWorker(
-    full_worker=_run_trial_worker,
-    algorithm_runner=_run_algorithm_worker,
-    algorithm_cache_key=_poster_algorithm_cache_key,
-    legacy_trial_cache_key=_poster_trial_cache_key,
-    full_from_dict=PosterTrialResult.from_dict,
-    coerce_full_result=_coerce_full_trial_result,
-)
+def _build_trial_worker(
+    refresh_algorithms: tuple[str, ...] = (),
+) -> CachedSplitTrialWorker:
+    return CachedSplitTrialWorker(
+        full_worker=_run_trial_worker,
+        algorithm_runner=_run_algorithm_worker,
+        algorithm_cache_key=_poster_algorithm_cache_key,
+        legacy_trial_cache_key=_poster_trial_cache_key,
+        full_from_dict=PosterTrialResult.from_dict,
+        coerce_full_result=_coerce_full_trial_result,
+        refresh_algorithms=refresh_algorithms,
+    )
+
+
+_run_trial_with_cache = _build_trial_worker()
 
 
 def _run_mr2s_trial_worker(
@@ -185,6 +196,7 @@ def run(
     num_workers: int | None = None,
     cache_dir: str | None = None,
     use_cache: bool = True,
+    refresh_algorithms: tuple[str, ...] = (),
 ) -> None:
     config = PosterRunConfig(
         sizes=sizes,
@@ -194,10 +206,11 @@ def run(
         num_workers=num_workers,
         cache_dir=cache_dir,
         use_cache=use_cache,
+        refresh_algorithms=refresh_algorithms,
     )
     PosterResultsRunner(
         config=config,
-        worker=_run_trial_with_cache,
+        worker=_build_trial_worker(refresh_algorithms),
         progress_printer=_print_trial_progress,
         plotter=_plot_results,
     ).run()
@@ -289,6 +302,13 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Disable reading and writing the per-trial cache.",
     )
     p.add_argument(
+        "--refresh-algorithms",
+        choices=FULL_TRIAL_ALGORITHMS,
+        nargs="+",
+        default=(),
+        help="Recompute selected algorithms while reusing all other solver caches.",
+    )
+    p.add_argument(
         "--num-workers",
         type=int,
         default=None,
@@ -330,4 +350,5 @@ def _dispatch(args: argparse.Namespace) -> None:
         args.num_workers,
         args.cache_dir,
         not args.no_cache,
+        tuple(args.refresh_algorithms),
     )

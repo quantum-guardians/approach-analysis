@@ -19,9 +19,16 @@ from mr2s_module import (
     QuboMR2SSolver,
     SAMR2SSolver,
     SmallWorldSpec,
+    create_dnc_sa_solver,
+    create_qubo_sa_solver,
+    create_qubo_qa_solver,
 )
 
-from src.commands.face_k_analysis import _generate_delaunay_graph, _nx_to_mr2s_graph
+from src.commands.face_k_analysis import (
+    _generate_delaunay_graph,
+    _nx_to_mr2s_graph,
+    remove_edges_maintaining_biconnectivity,
+)
 from src.commands.poster_results.models import TrialTimings
 
 # mr2s_moduleのGraph実装にis_emptyがないバージョンがあるためランタイムで補強する。
@@ -34,6 +41,7 @@ if not hasattr(mr2s_module.domain.graph.Graph, "is_empty"):
 
 
 spec = SmallWorldSpec([NHop(2, 1), NHop(3, 1)])
+POSTER_GRAPH_REMOVAL_PCT = 0.0
 
 
 def _as_finite_or_nan(value: Any) -> float:
@@ -58,14 +66,17 @@ def _generate_trial_graph(n: int, trial: int, seed: int | None) -> tuple[nx.Grap
     trial_seed = _trial_seed(n, trial, seed)
     start = time.monotonic()
     graph = _generate_delaunay_graph(n, trial_seed)
+    if POSTER_GRAPH_REMOVAL_PCT > 0.0:
+        graph, _ = remove_edges_maintaining_biconnectivity(
+            graph,
+            POSTER_GRAPH_REMOVAL_PCT,
+            np.random.default_rng(trial_seed),
+        )
     return graph, trial_seed, time.monotonic() - start
 
 
-def _build_sa_solver(seed: int | None = None) -> SAMR2SSolver:
-    return SAMR2SSolver(
-        evaluator=Evaluator(),
-        random_seed=seed,
-    )
+def _build_sa_solver(seed: int | None = None) -> Any:
+    return create_dnc_sa_solver(random_seed=seed)
 
 
 def _build_qubo_solver(
@@ -74,17 +85,13 @@ def _build_qubo_solver(
     qa_num_reads: int = 100,
 ) -> QuboMR2SSolver:
     n_hop_poly = NHopPolyGenerator(small_world_spec=spec)
-    qubo_solver = (
-        QuboSolver.create_qa_solver(ApspSumRanker(), num_reads=qa_num_reads)
-        if use_qa
-        else QuboSolver.create_sa_solver(ApspSumRanker())
-    )
-    return QuboMR2SSolver(
-        edge_orienter=edge_orienter,
-        qubo_solver=qubo_solver,
-        evaluator=Evaluator(),
-        poly_generators=[n_hop_poly, FlowPolyGenerator()],
-    )
+    if use_qa:
+        solver = create_qubo_qa_solver()
+    else:
+        solver = create_qubo_sa_solver()
+    solver.edge_orienter = edge_orienter
+    solver.poly_generators = [n_hop_poly, FlowPolyGenerator()]
+    return solver
 
 
 def _extract_directed_edges_from_solution(sol: Any) -> list[tuple[int, int]] | None:

@@ -71,6 +71,7 @@ REQUIRED_RESULT_SERIES_KEYS = {
     "random": ["apsp", "flow"],
     "timings": FULL_TIMING_KEYS,
 }
+DEFAULT_GRAPH_REMOVAL_PCT = 0.0
 
 
 def _normalize_random_baseline(result: Any) -> Any:
@@ -110,6 +111,8 @@ class PosterRunConfig:
     num_workers: int | None = None
     cache_dir: str | None = None
     use_cache: bool = True
+    refresh_algorithms: tuple[str, ...] = ()
+    graph_removal_pct: float = DEFAULT_GRAPH_REMOVAL_PCT
 
     def resolved_cache_dir(self, default_name: str) -> str | None:
         if not self.use_cache:
@@ -127,6 +130,8 @@ class PosterRunConfig:
             num_workers=self.num_workers,
             cache_dir=self.cache_dir,
             use_cache=self.use_cache,
+            refresh_algorithms=self.refresh_algorithms,
+            graph_removal_pct=self.graph_removal_pct,
         )
 
 
@@ -572,8 +577,16 @@ def _has_nested_series_value(
     return size in _nested_series_by_size(results, section, item_name, key)
 
 
-def _has_current_result_schema(results: dict[str, Any], size: int) -> bool:
+def _has_current_result_schema(
+    results: dict[str, Any],
+    size: int,
+    graph_removal_pct: float,
+) -> bool:
     # 새 solver/metric이 추가되면 기존 poster_results.json만 보고 size 전체를 건너뛰지 않는다.
+    current_pct = results.get("graph_removal_pct")
+    if current_pct is None or abs(float(current_pct) - graph_removal_pct) > 1e-9:
+        return False
+
     for section, keys in REQUIRED_RESULT_SERIES_KEYS.items():
         for key in keys:
             if not _has_series_value(results, section, key, size):
@@ -633,7 +646,7 @@ class PosterResultsRunner:
                 size
                 for size in self.config.sizes
                 if size in existing_results.get("sizes", [])
-                and _has_current_result_schema(existing_results, size)
+                and _has_current_result_schema(existing_results, size, self.config.graph_removal_pct)
             ]
             if reused_sizes:
                 print(f"Reusing existing poster results for size(s): {reused_sizes}")
@@ -649,6 +662,7 @@ class PosterResultsRunner:
         else:
             results = self.aggregator.empty_results(self.config.sizes)
 
+        results["graph_removal_pct"] = self.config.graph_removal_pct
         self._write_results(results)
         self.plotter(results, self.config.output_dir)
         return results
@@ -663,13 +677,16 @@ class PosterResultsRunner:
             return json.load(f)
 
     def _sizes_to_compute(self, existing_results: dict[str, Any] | None) -> list[int]:
+        if self.config.refresh_algorithms:
+            return self.config.sizes
         if existing_results is None:
             return self.config.sizes
         existing_sizes = set(existing_results.get("sizes", []))
         return [
             size
             for size in self.config.sizes
-            if size not in existing_sizes or not _has_current_result_schema(existing_results, size)
+            if size not in existing_sizes
+            or not _has_current_result_schema(existing_results, size, self.config.graph_removal_pct)
         ]
 
     def _build_tasks(self, cache_dir: str | None, sizes: list[int]) -> list[TrialTask]:
@@ -736,6 +753,12 @@ class Mr2sOnlyPosterResultsRunner(PosterResultsRunner):
 
         with open(source_results_path) as f:
             results = json.load(f)
+        current_pct = results.get("graph_removal_pct")
+        if current_pct is None or abs(float(current_pct) - self.config.graph_removal_pct) > 1e-9:
+            raise ValueError(
+                "MR2S-only mode needs existing results generated with "
+                f"graph_removal_pct={self.config.graph_removal_pct}"
+            )
 
         cache_dir = self.config.resolved_cache_dir(self.cache_name)
         tasks = self._build_tasks(cache_dir, self.config.sizes)
@@ -752,6 +775,7 @@ class Mr2sOnlyPosterResultsRunner(PosterResultsRunner):
 
         trial_results = self._collect_trials(tasks, workers, total_tasks, self.config.sizes)
         merged = self.aggregator.merge_mr2s_only(results, trial_results)
+        merged["graph_removal_pct"] = self.config.graph_removal_pct
         self._write_results(merged)
         self.plotter(merged, self.config.output_dir)
         return merged

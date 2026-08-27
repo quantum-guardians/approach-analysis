@@ -7,7 +7,6 @@ from typing import Any
 
 import networkx as nx
 
-from src.commands.face_k_analysis import _generate_delaunay_graph
 from src.commands.poster_results.models import (
     BasicSolverResult,
     GlobalSolverResult,
@@ -18,6 +17,7 @@ from src.commands.poster_results.models import (
     TrialTimings,
 )
 from src.commands.poster_results.solvers.base import (
+    _generate_trial_graph,
     _trial_seed,
 )
 from src.commands.poster_results.solvers.raw_sa import RawSASolver
@@ -37,7 +37,7 @@ def _run_trial(task: tuple[int, int, int | None]) -> tuple[int, int, PosterTrial
     timings = TrialTimings()
 
     start = time.monotonic()
-    graph = _generate_delaunay_graph(n, trial_seed)
+    graph, _, _ = _generate_trial_graph(n, trial, seed)
     timings.values["graph"] = time.monotonic() - start
 
     # 1. Raw SA baseline
@@ -102,7 +102,7 @@ def _run_mr2s_trial(task: tuple[int, int, int | None]) -> tuple[int, int, Mr2sTr
     n, trial, seed = task
     trial_seed = (seed + trial * 100 + n) if seed is not None else None
     start = time.monotonic()
-    graph = _generate_delaunay_graph(n, trial_seed)
+    graph, _, _ = _generate_trial_graph(n, trial, seed)
     graph_time = time.monotonic() - start
 
     print(f"[{n=}, {trial=}] Running DnC strategy: {CLUSTER_DNC_STRATEGY}...")
@@ -138,7 +138,7 @@ def _run_poster_algorithm(
 ) -> tuple[BasicSolverResult | GlobalSolverResult | Mr2sSolverResult | RandomBaselineResult, TrialTimings]:
     trial_seed = _trial_seed(n, trial, seed)
     start = time.monotonic()
-    graph = _generate_delaunay_graph(n, trial_seed)
+    graph, _, _ = _generate_trial_graph(n, trial, seed)
     graph_time = time.monotonic() - start
 
     solver_cls = ALGORITHM_SOLVER_MAP.get(algorithm)

@@ -39,7 +39,8 @@ from scipy.spatial import Delaunay
 
 from mr2s_module import FaceClusterPartition as FaceCycle, Graph as MR2SGraph, \
   Edge as MR2SEdge, NHop, QuboMR2SSolver, QuboSolver, ApspSumRanker, \
-  Evaluator, NHopPolyGenerator, FlowPolyGenerator, SmallWorldSpec
+  Evaluator, NHopPolyGenerator, FlowPolyGenerator, SmallWorldSpec, \
+  create_qubo_sa_solver
 
 from src.visualizer import plot_face_k_analysis, plot_optimal_k_fit_evidence
 
@@ -49,12 +50,9 @@ spec = SmallWorldSpec([NHop(2, 1), NHop(3, 1)])
 def _build_solver(target_k: int) -> QuboMR2SSolver:
     """Create an isolated MR2S solver configured for a FaceCycle run."""
     n_hop_poly = NHopPolyGenerator(small_world_spec=spec)
-    solver = QuboMR2SSolver(
-        FaceCycle(target_k=target_k),
-        QuboSolver.create_sa_solver(ApspSumRanker()),
-        Evaluator(),
-        [n_hop_poly, FlowPolyGenerator()],
-    )
+    solver = create_qubo_sa_solver()
+    solver.edge_orienter = FaceCycle(target_k=target_k)
+    solver.poly_generators = [n_hop_poly, FlowPolyGenerator()]
     return solver
 
 

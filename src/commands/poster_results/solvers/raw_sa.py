@@ -28,7 +28,6 @@ class RawSASolver(BaseSolver):
         timings = TrialTimings()
         start = time.monotonic()
         solver = _build_sa_solver(seed=seed)
-        solver.face_cycle = None
         sol = solver.run(_nx_to_mr2s_graph(graph))
         timings.values["raw_sa"] = time.monotonic() - start
         directed_edges = _extract_directed_edges_from_solution(sol)

@@ -256,6 +256,7 @@ class CachedSplitTrialWorker:
         full_from_dict: Callable[[dict[str, Any]], PosterTrialResult],
         coerce_full_result: Callable[[Any], PosterTrialResult],
         algorithms: tuple[str, ...] = FULL_TRIAL_ALGORITHMS,
+        refresh_algorithms: tuple[str, ...] = (),
     ) -> None:
         self.full_worker = full_worker
         self.algorithm_runner = algorithm_runner
@@ -264,6 +265,7 @@ class CachedSplitTrialWorker:
         self.full_from_dict = full_from_dict
         self.coerce_full_result = coerce_full_result
         self.algorithms = algorithms
+        self.refresh_algorithms = frozenset(refresh_algorithms)
 
     def __call__(self, task: CachedTrialTask) -> tuple[int, int, PosterTrialResult]:
         n, trial, seed, cache_dir = task
@@ -315,20 +317,23 @@ class CachedSplitTrialWorker:
     ) -> tuple[AlgorithmResult, TrialTimings, bool]:
         cache = _algorithm_cache(cache_dir, algorithm)
         key = self.algorithm_cache_key(n, trial, seed, algorithm)
-        cached_payload = cache.get(key)
-        if isinstance(cached_payload, dict):
-            result, timings = _algorithm_from_payload(cached_payload)
-            return result, timings, True
-
-        if legacy_result is None:
-            legacy_result = self._load_legacy_result(legacy_cache, n, trial, seed)
-        if legacy_result is not None:
-            extracted = _extract_legacy_algorithm(legacy_result, algorithm)
-            if extracted is not None:
-                result, timings = extracted
-                # migration은 lazy하게 수행한다: 요청된 trial/solver만 새 위치에 저장한다.
-                cache.set(key, _algorithm_payload(algorithm, result, timings))
+        refresh = algorithm in self.refresh_algorithms
+        if not refresh:
+            cached_payload = cache.get(key)
+            if isinstance(cached_payload, dict):
+                result, timings = _algorithm_from_payload(cached_payload)
                 return result, timings, True
+
+        if not refresh:
+            if legacy_result is None:
+                legacy_result = self._load_legacy_result(legacy_cache, n, trial, seed)
+            if legacy_result is not None:
+                extracted = _extract_legacy_algorithm(legacy_result, algorithm)
+                if extracted is not None:
+                    result, timings = extracted
+                    # migration은 lazy하게 수행한다: 요청된 trial/solver만 새 위치에 저장한다.
+                    cache.set(key, _algorithm_payload(algorithm, result, timings))
+                    return result, timings, True
 
         result, timings = self.algorithm_runner(n, trial, seed, algorithm)
         cache.set(key, _algorithm_payload(algorithm, result, timings))
